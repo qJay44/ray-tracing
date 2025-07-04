@@ -1,0 +1,7 @@
+set(GLAD_PATH "C:/Users/q44/Documents/Libs/glad")
+set(GLFW_PATH "C:/Users/q44/Documents/Libs/glfw-3.4")
+set(GLM_PATH "C:/Users/q44/Documents/Libs/glm/install")
+set(GENERAL_INCLUDES "C:/Users/q44/Documents/Libs/!General/include")
+set(IMGUI_PATH "C:/Users/q44/Documents/Libs/imgui-1.91.7")
+set(UTILS_PATH "C:/Users/q44/Documents/Projects/utils")
+set(LIBTIFF_PATH "C:/Users/q44/Documents/Libs/tiff-4.7.0/build/install")
