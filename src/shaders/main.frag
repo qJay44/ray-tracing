@@ -30,6 +30,8 @@ struct HitInfo {
   RayTracingMaterial material;
 };
 
+const HitInfo hitInfoInit = HitInfo(false, FLT_MAX, vec3(0.f), vec3(0.f), RayTracingMaterial(vec4(0.f)));
+
 uniform vec2 u_resolution;
 uniform vec3 u_camPos;
 uniform mat4 u_camInv;
@@ -58,7 +60,7 @@ Ray calcRay() {
 }
 
 HitInfo raySphere(Ray ray, vec3 sphereCenter, float sphereRadius) {
-  HitInfo hitInfo = HitInfo(false, FLT_MAX, vec3(0.f), vec3(0.f), RayTracingMaterial(vec4(0.f)));
+  HitInfo hitInfo = hitInfoInit;
   vec3 offsetRayOrigin = ray.origin - sphereCenter;
 
   float a = 1.f;
@@ -81,7 +83,7 @@ HitInfo raySphere(Ray ray, vec3 sphereCenter, float sphereRadius) {
 }
 
 HitInfo calcRayCollision(Ray ray) {
-  HitInfo closestHit = HitInfo(false, FLT_MAX, vec3(0.f), vec3(0.f), RayTracingMaterial(vec4(0.f)));
+  HitInfo closestHit = hitInfoInit;
 
   for (int i = 0; i < MAX_SPHERES; i++) {
     Sphere sphere = spheres[i];
