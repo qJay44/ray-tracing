@@ -23,7 +23,7 @@
 #include "objects/Sphere.hpp"
 #include "utils/clrp.hpp"
 
-#define MAX_SPHERES 10u
+#define MAX_SPHERES 5u
 
 using global::window;
 
@@ -136,7 +136,26 @@ int main() {
   float offset = 0.f;
   for (size_t i = 0; i < MAX_SPHERES; i++) {
     float r = (i + 1) * 0.1f;
-    spheres[i] = Sphere({offset + r, 0.f, 0.f}, r, {{randColor255Norm(), 1.f}});
+
+    RayTracingMaterial material;
+    material.color = {randColor255Norm(), 1.f};
+    material.emissionColor = vec3(0.f);
+    material.emissionStrength = 0.f;
+
+    Sphere sphere;
+    sphere.pos = {offset + r, 0.f, 0.f};
+    sphere.radius = r;
+    sphere.material = material;
+
+    if (i + 1 == MAX_SPHERES) {
+      sphere.material.color = vec4(1.f);
+      sphere.material.emissionColor = vec3(1.f);
+      sphere.material.emissionStrength = 2.f;
+      sphere.pos.x -= offset * 0.5f;
+      sphere.pos.y += r * 2.f;
+    }
+
+    spheres[i] = sphere;
     offset += r + r + 0.1f;
   }
 

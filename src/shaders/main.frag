@@ -1,7 +1,10 @@
 #version 460 core
 
-#define MAX_SPHERES 10u
 #define FLT_MAX 3.4028235e38f
+#define PI 3.141592265359f
+
+#define MAX_SPHERES 5u
+#define MAX_BOUNCES 5u
 
 out vec4 FragColor;
 
@@ -14,6 +17,8 @@ struct Ray {
 
 struct RayTracingMaterial {
   vec4 color;
+  vec3 emissionColor;
+  float emissionStrength;
 };
 
 struct Sphere {
@@ -30,7 +35,8 @@ struct HitInfo {
   RayTracingMaterial material;
 };
 
-const HitInfo hitInfoInit = HitInfo(false, FLT_MAX, vec3(0.f), vec3(0.f), RayTracingMaterial(vec4(0.f)));
+const RayTracingMaterial rtMaterialInit = RayTracingMaterial(vec4(0.f), vec3(0.f), 0.f);
+const HitInfo hitInfoInit = HitInfo(false, FLT_MAX, vec3(0.f), vec3(0.f), rtMaterialInit);
 
 uniform vec2 u_resolution;
 uniform vec3 u_camPos;
@@ -98,14 +104,76 @@ HitInfo calcRayCollision(Ray ray) {
   return closestHit;
 }
 
+uint rngState = uint(gl_FragCoord.x + gl_FragCoord.y * u_resolution.x);
+
+// float randomValue() {
+//   rngState *= (rngState + 195439u) * (rngState + 124395u) * (rngState + 845921u);
+//   return rngState / 4294967295.f;
+// }
+
+float randomValue() {
+  rngState = rngState * 747796405 + 2891336453;
+  uint result = ((rngState >> ((rngState >> 28) + 4)) ^ rngState) * 277803737;
+  result = (result >> 22) ^ result;
+
+  return result / 4294967295.f;
+}
+
+float randomValueNormalDistribution() {
+  float theta = 2.f * PI * randomValue();
+  float rho = sqrt(-2 * log(randomValue()));
+  return rho * cos(theta);
+}
+
+// vec3 randomDirection() {
+//   return normalize(vec3(
+//     randomValue() * 2.f - 1.f,
+//     randomValue() * 2.f - 1.f,
+//     randomValue() * 2.f - 1.f
+//   ));
+// }
+
+vec3 randomDirection() {
+  return normalize(vec3(
+    randomValueNormalDistribution(),
+    randomValueNormalDistribution(),
+    randomValueNormalDistribution()
+  ));
+}
+
+vec3 randomHemisphereDirection(vec3 normal) {
+  vec3 dir = randomDirection();
+  return dir * sign(dot(normal, dir));
+}
+
+vec3 trace(Ray ray) {
+  vec3 incomingLight = vec3(0.f);
+  vec3 rayColor = vec3(1.f);
+
+  for (int i = 0; i < MAX_BOUNCES; i++) {
+    HitInfo hitInfo = calcRayCollision(ray);
+    if (hitInfo.didHit) {
+      ray.origin = hitInfo.hitPoint;
+      ray.dir = randomHemisphereDirection(hitInfo.normal);
+
+      RayTracingMaterial material = hitInfo.material;
+      vec3 emittedLight = material.emissionColor * material.emissionStrength;
+      incomingLight += emittedLight * rayColor;
+      rayColor *= material.color.xyz;
+    } else {
+      break;
+    }
+  }
+
+  return incomingLight;
+}
+
 void main() {
   Ray ray = calcRay();
-  vec4 color = texture(u_screenColorTex, texCoord);
-  HitInfo closestHit = calcRayCollision(ray);
+  vec3 color = texture(u_screenColorTex, texCoord).rgb;
 
-  if (closestHit.didHit)
-    color += closestHit.material.color;
+  color += trace(ray);
 
-  FragColor = color;
+  FragColor = vec4(color, 1.f);
 }
 
