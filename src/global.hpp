@@ -11,6 +11,8 @@ extern GLFWwindow* window;
 extern float dt;
 extern float time;
 
+extern int frameId;
+
 extern bool guiFocused;
 extern bool sceneCamera;
 extern bool drawWireframe;

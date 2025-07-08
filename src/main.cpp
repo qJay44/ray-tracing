@@ -20,6 +20,7 @@
 #include "engine/RBO.hpp"
 #include "global.hpp"
 #include "gui.hpp"
+#include "objects/RayTracingData.hpp"
 #include "objects/Sphere.hpp"
 #include "utils/clrp.hpp"
 
@@ -104,13 +105,26 @@ int main() {
   Shader::setDefaultShader(SHADER_DEFAULT_TYPE_TEXTURE_SHADER, "default/texture.vert", "default/texture.frag");
 
   Shader mainShader("main.vert", "main.frag");
+  Shader rtShader("rt.vert", "rt.frag");
+  Shader averageShader("average.vert", "average.frag");
   Shader colorShader = Shader::getDefaultShader(SHADER_DEFAULT_TYPE_COLOR_SHADER);
 
-  mainShader.setUniform2f("u_resolution", vec2(winSize));
+  const GLint averageNumRenderedFramesLoc = averageShader.getUniformLoc("u_numRenderedFrames");
+  const GLint rtLightPosLoc = rtShader.getUniformLoc("u_lightPos");
+
+  rtShader.setUniform2f("u_resolution", vec2(winSize));
+
+  RayTracingData rtData;
+  rtData.groundColor = vec3(0.034f);
+  rtData.skyHorizonColor = {0.007f, 0.058f, 0.098f};
+  rtData.skyZenithColor = {0.f, 0.023f, 0.025f};
+  rtData.numRaysPerPixel = 10;
+  rtData.sunFocus = 550.f;
+  rtData.sunIntensity = 1.f;
 
   // ===== Light ================================================ //
 
-  Light light(vec3{0.f, 0.f, 10.f}, 1.5f);
+  Light light(vec3{0.f, 500.f, -1000.f}, 1.5f);
 
   // ===== Cameras ============================================== //
 
@@ -132,7 +146,20 @@ int main() {
 
   // ===== Spheres ============================================== //
 
-  Sphere spheres[MAX_SPHERES];
+  UBO ubo(1);
+  Sphere* spheresBuf = nullptr;
+  {
+    GLsizeiptr size = sizeof(Sphere) * MAX_SPHERES;
+    GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
+
+    ubo.storage(size, flags);
+    spheresBuf = (Sphere*)ubo.map(size, flags);
+  }
+
+  rtShader.setUniformBlock("u_spheresBlock", 0);
+  ubo.bindBase(0);
+  ubo.unbind();
+
   float offset = 0.f;
   for (size_t i = 0; i < MAX_SPHERES; i++) {
     float r = (i + 1) * 0.1f;
@@ -153,21 +180,14 @@ int main() {
       sphere.material.emissionStrength = 2.f;
       sphere.pos.x -= offset * 0.5f;
       sphere.pos.y += r * 2.f;
+      sphere.pos.z += r * 2.f;
     }
 
-    spheres[i] = sphere;
+    spheresBuf[i] = sphere;
     offset += r + r + 0.1f;
   }
 
-  UBO ubo(1, spheres, sizeof(Sphere) * MAX_SPHERES);
-  mainShader.setUniformBlock("u_spheresBlock", 0);
-  ubo.bindBase(0);
-  ubo.unbind();
-
-  // ============================================================ //
-
-  gui::link(&cameraScene);
-  gui::link(&light);
+  // ===== Framebuffers ========================================= //
 
   TexParams depthTexParams{
     GL_NEAREST,
@@ -176,21 +196,46 @@ int main() {
     GL_CLAMP_TO_EDGE,
   };
 
+  GLuint unitOld = 0;
+  const GLuint unitNew = 1;
+  GLuint unitFinal = 2;
+  const GLuint unitDepth = 3;
+
   FBO fboScreen(1);
-  Texture screenColorTexture(winSize, GL_RGB, GL_RGB, "u_screenColorTex", 0);
-  Texture screenDepthTexture(winSize, GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT, "u_screenDepthTex", 1, GL_TEXTURE_2D, depthTexParams);
+  FBO fboRT(1);
+  FBO fboAverage(1);
+  Texture screenColorTextureOld(winSize, GL_RGB, GL_RGB, "u_screenColorTexOld", unitOld);
+  Texture screenColorTextureNew(winSize, GL_RGB, GL_RGB, "u_screenColorTexNew", unitNew);
+  Texture screenColorTextureFinal(winSize, GL_RGB, GL_RGB, "u_screenColorTexFinal", unitFinal);
+  Texture screenDepthTexture(winSize, GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT, "u_screenDepthTex", unitDepth, GL_TEXTURE_2D, depthTexParams);
   RBO rboScreen(1);
-  fboScreen.attach2D(GL_COLOR_ATTACHMENT0, screenColorTexture);
+
+  Texture* currOld = &screenColorTextureOld;
+  Texture* currNew = &screenColorTextureNew;
+
+  fboScreen.attach2D(GL_COLOR_ATTACHMENT0, screenColorTextureNew);
   fboScreen.attach2D(GL_DEPTH_ATTACHMENT, screenDepthTexture);
+  fboRT.attach2D(GL_COLOR_ATTACHMENT0, screenColorTextureNew); // NOTE: Writting to and reading from the same texture
+  fboAverage.attach2D(GL_COLOR_ATTACHMENT0, screenColorTextureFinal);
+
   fboScreen.bind();
   rboScreen.storage(GL_DEPTH24_STENCIL8, winSize);
 
   FBO::unbind();
 
-  mainShader.setUniformTexture(screenColorTexture);
-  mainShader.setUniformTexture(screenDepthTexture);
+  mainShader.setUniformTexture(screenColorTextureFinal);
+  rtShader.setUniformTexture(screenColorTextureNew);
+  rtShader.setUniformTexture(screenDepthTexture);
+  averageShader.setUniformTexture(screenColorTextureOld);
+  averageShader.setUniformTexture(screenColorTextureNew);
 
   Mesh<VertexPT> screenMesh = meshes::screen();
+
+  // ============================================================ //
+
+  gui::link(&cameraScene);
+  gui::link(&light);
+  gui::link(&rtData);
 
   // Render loop
   while (!glfwWindowShouldClose(window)) {
@@ -208,7 +253,6 @@ int main() {
     else prevTime = currTime;
 
     camera = global::sceneCamera ? &cameraScene : &cameraHelper1;
-    global::time += global::dt;
 
     if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
       InputsHandler::process(camera);
@@ -226,6 +270,8 @@ int main() {
       titleTimer = currTime;
     }
 
+    // ===== Default world draw =================================== //
+
     fboScreen.bind();
     glClearColor(0.f, 0.f, 0.f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -235,18 +281,50 @@ int main() {
 
     camera->draw(cameraScene, colorShader, CAMERA_FLAG_DRAW_DIRECTIONS | CAMERA_FLAG_DRAW_RAYS);
 
-    FBO::unbind();
+    // ===== Ray tracing (Post-process) =========================== //
+
+    fboRT.bind();
     glClearColor(0.f, 0.f, 0.f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT);
     glDisable(GL_DEPTH_TEST);
-    screenColorTexture.bind();
-    screenDepthTexture.bind();
 
+    screenColorTextureNew.bind();
     ubo.bind();
-    screenMesh.draw(camera, mainShader);
 
-    screenColorTexture.unbind();
-    screenDepthTexture.unbind();
+    rtData.update(rtShader);
+    rtShader.setUniform3f(rtLightPosLoc, light.getPosition());
+    screenMesh.draw(camera, rtShader);
+
+    screenColorTextureNew.unbind();
+    ubo.unbind();
+
+    // ===== Average between old and new render (Post-process) ==== //
+
+    fboAverage.bind();
+    glClearColor(0.f, 0.f, 0.f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    screenColorTextureOld.bind();
+    screenColorTextureNew.bind();
+
+    averageShader.setUniform1i(averageNumRenderedFramesLoc, global::frameId);
+
+    screenMesh.draw(camera, averageShader);
+
+    screenColorTextureOld.unbind();
+    screenColorTextureNew.unbind();
+
+    // ===== Final draw =========================================== //
+
+    FBO::unbind();
+    glClearColor(0.f, 0.f, 0.f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    mainShader.setUniformTexture(screenColorTextureFinal);
+
+    screenColorTextureFinal.bind();
+    screenMesh.draw(camera, mainShader);
+    screenColorTextureFinal.unbind();
 
     if (global::drawGlobalAxis)
       meshes::axis(50.f).draw(camera, colorShader);
@@ -255,8 +333,25 @@ int main() {
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
+    // ===== Post draw updates ==================================== //
+
     glfwSwapBuffers(window);
     glfwPollEvents();
+
+    global::time += global::dt;
+    global::frameId++;
+
+    Texture* currTemp = currOld;
+    currOld = currNew;
+    currNew = currTemp;
+
+    fboScreen.attach2D(GL_COLOR_ATTACHMENT0, *currNew);
+    fboRT.attach2D(GL_COLOR_ATTACHMENT0, *currNew);
+
+    // Updating all spheres except the last one (light emitter)
+    for (size_t i = 0; i < MAX_SPHERES - 1; i++) {
+      spheresBuf[i].update();
+    }
   }
 
   ImGui_ImplOpenGL3_Shutdown();

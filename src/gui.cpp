@@ -5,6 +5,7 @@
 
 #include "glm/gtc/type_ptr.hpp"
 #include "imgui.h"
+#include "utils/utils.hpp"
 
 #define IM_RED   IM_COL32(255u, 0u  , 0u  , 255u)
 #define IM_GREEN IM_COL32(0u ,  255u, 0u  , 255u)
@@ -19,9 +20,11 @@ static bool collapsed = true;
 
 Camera* cameraPtr;
 Light* lightPtr;
+RayTracingData* rtDataPtr;
 
-void gui::link(Camera* ptr) { cameraPtr = ptr; }
-void gui::link(Light* ptr)  { lightPtr  = ptr; }
+void gui::link(Camera* ptr)         { cameraPtr = ptr; }
+void gui::link(Light* ptr)          { lightPtr  = ptr; }
+void gui::link(RayTracingData* ptr) { rtDataPtr = ptr; }
 
 void gui::toggle() { collapsed = !collapsed; }
 
@@ -41,6 +44,20 @@ void gui::draw() {
     SliderFloat("Far##2",   &cameraPtr->farPlane,  10.f , 100.f);
     SliderFloat("Speed##2", &cameraPtr->speed,     1.f  , 50.f);
     SliderFloat("FOV##2",   &cameraPtr->fov,       45.f , 179.f);
+
+    TreePop();
+  }
+
+  // ================== Ray tracing config =============
+
+  if (!rtDataPtr) error("The ray tracing data struct is not linked to gui");
+  if (TreeNode("Ray tracing config")) {
+    ColorEdit3("Ground color", glm::value_ptr(rtDataPtr->groundColor));
+    ColorEdit3("Sky horizon color", glm::value_ptr(rtDataPtr->skyHorizonColor));
+    ColorEdit3("Sky zenith color", glm::value_ptr(rtDataPtr->skyZenithColor));
+    SliderInt("Rays per pixel", &rtDataPtr->numRaysPerPixel, 1, 100);
+    SliderFloat("Sun focus", &rtDataPtr->sunFocus, -50.f, 50.f);
+    SliderFloat("Sun intensity", &rtDataPtr->sunIntensity, -50.f, 50.f);
 
     TreePop();
   }
