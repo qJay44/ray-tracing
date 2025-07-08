@@ -3,8 +3,7 @@
 #define FLT_MAX 3.4028235e38f
 #define PI 3.141592265359f
 
-#define MAX_SPHERES 5u
-#define MAX_BOUNCES 5u
+#define MAX_SPHERES 6u
 
 out vec4 FragColor;
 
@@ -45,10 +44,11 @@ uniform vec3 u_skyHorizonColor;
 uniform vec3 u_skyZenithColor;
 uniform vec3 u_camPos;
 uniform mat4 u_camInv;
-uniform sampler2D u_screenColorTexNew;
+uniform sampler2D u_screenColorTexDefault;
 uniform sampler2D u_screenDepthTex;
 uniform int u_numRaysPerPixel;
 uniform int u_numRenderedFrames;
+uniform int u_numRayBounces;
 uniform float u_sunFocus;
 uniform float u_sunIntensity;
 
@@ -170,7 +170,7 @@ vec3 trace(Ray ray) {
   vec3 incomingLight = vec3(0.f);
   vec3 rayColor = vec3(1.f);
 
-  for (int i = 0; i < MAX_BOUNCES; i++) {
+  for (int i = 0; i < u_numRayBounces; i++) {
     HitInfo hitInfo = calcRayCollision(ray);
     if (hitInfo.didHit) {
       ray.origin = hitInfo.hitPoint;
@@ -191,7 +191,7 @@ vec3 trace(Ray ray) {
 
 void main() {
   Ray ray = calcRay();
-  vec3 color = texture(u_screenColorTexNew, texCoord).rgb;
+  vec3 color = texture(u_screenColorTexDefault, texCoord).rgb;
 
   for (int i = 0; i < u_numRaysPerPixel; i++) {
     color += trace(ray);

@@ -10,7 +10,7 @@ struct Sphere {
   RayTracingMaterial material;
 
   void update() {
-    // pos.y += sin(global::time) * global::dt * (radius + radius);
+    pos.y += sin(global::time) * global::dt * (radius + radius);
   }
 };
 

@@ -22,9 +22,8 @@
 #include "gui.hpp"
 #include "objects/RayTracingData.hpp"
 #include "objects/Sphere.hpp"
+#include "objects/scenes.hpp"
 #include "utils/clrp.hpp"
-
-#define MAX_SPHERES 5u
 
 using global::window;
 
@@ -107,6 +106,7 @@ int main() {
   Shader mainShader("main.vert", "main.frag");
   Shader rtShader("rt.vert", "rt.frag");
   Shader averageShader("average.vert", "average.frag");
+  Shader swapShader("swap.vert", "swap.frag");
   Shader colorShader = Shader::getDefaultShader(SHADER_DEFAULT_TYPE_COLOR_SHADER);
 
   const GLint averageNumRenderedFramesLoc = averageShader.getUniformLoc("u_numRenderedFrames");
@@ -119,20 +119,21 @@ int main() {
   rtData.skyHorizonColor = {0.007f, 0.058f, 0.098f};
   rtData.skyZenithColor = {0.f, 0.023f, 0.025f};
   rtData.numRaysPerPixel = 10;
+  rtData.numRayBounces = 5;
   rtData.sunFocus = 550.f;
-  rtData.sunIntensity = 1.f;
+  rtData.sunIntensity = 50.f;
 
   // ===== Light ================================================ //
 
-  Light light(vec3{0.f, 500.f, -1000.f}, 1.5f);
+  Light light(vec3{300.f, 300.f, -1000.f}, 1.5f);
 
   // ===== Cameras ============================================== //
 
-  Camera cameraScene({0.f, 0.f, 1.f}, {0.f, 0.f, -1.f}, 100.f);
+  Camera cameraScene({-3.29f, 11.16f, 2.74f}, {0.64f, 0.02f, -0.81f}, 100.f);
   cameraScene.setFarPlane(100.f);
   cameraScene.setSpeed(5.f);
 
-  Camera cameraHelper1({0.f, 0.f, -1.f}, {0.f, 0.f, 1.f}, 100.f);
+  Camera cameraHelper1({-5.f, 10.f, 5.f}, {0.48f, 0.05f, -0.91f}, 100.f);
   cameraHelper1.setFarPlane(100.f);
   cameraHelper1.setSpeed(5.f);
 
@@ -156,36 +157,11 @@ int main() {
     spheresBuf = (Sphere*)ubo.map(size, flags);
   }
 
+  scenes::scene1(spheresBuf);
+
   rtShader.setUniformBlock("u_spheresBlock", 0);
   ubo.bindBase(0);
   ubo.unbind();
-
-  float offset = 0.f;
-  for (size_t i = 0; i < MAX_SPHERES; i++) {
-    float r = (i + 1) * 0.1f;
-
-    RayTracingMaterial material;
-    material.color = {randColor255Norm(), 1.f};
-    material.emissionColor = vec3(0.f);
-    material.emissionStrength = 0.f;
-
-    Sphere sphere;
-    sphere.pos = {offset + r, 0.f, 0.f};
-    sphere.radius = r;
-    sphere.material = material;
-
-    if (i + 1 == MAX_SPHERES) {
-      sphere.material.color = vec4(1.f);
-      sphere.material.emissionColor = vec3(1.f);
-      sphere.material.emissionStrength = 2.f;
-      sphere.pos.x -= offset * 0.5f;
-      sphere.pos.y += r * 2.f;
-      sphere.pos.z += r * 2.f;
-    }
-
-    spheresBuf[i] = sphere;
-    offset += r + r + 0.1f;
-  }
 
   // ===== Framebuffers ========================================= //
 
@@ -196,26 +172,28 @@ int main() {
     GL_CLAMP_TO_EDGE,
   };
 
-  GLuint unitOld = 0;
-  const GLuint unitNew = 1;
-  GLuint unitFinal = 2;
-  const GLuint unitDepth = 3;
-
   FBO fboScreen(1);
   FBO fboRT(1);
   FBO fboAverage(1);
-  Texture screenColorTextureOld(winSize, GL_RGB, GL_RGB, "u_screenColorTexOld", unitOld);
-  Texture screenColorTextureNew(winSize, GL_RGB, GL_RGB, "u_screenColorTexNew", unitNew);
-  Texture screenColorTextureFinal(winSize, GL_RGB, GL_RGB, "u_screenColorTexFinal", unitFinal);
-  Texture screenDepthTexture(winSize, GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT, "u_screenDepthTex", unitDepth, GL_TEXTURE_2D, depthTexParams);
+  FBO fboSwap(1);
   RBO rboScreen(1);
 
-  Texture* currOld = &screenColorTextureOld;
-  Texture* currNew = &screenColorTextureNew;
+  // fboSwap write
+  Texture screenColorTextureOld(winSize, GL_RGB, GL_RGB, "u_screenColorTexOld", 0);
+  fboSwap.attach2D(GL_COLOR_ATTACHMENT0, screenColorTextureOld);
 
-  fboScreen.attach2D(GL_COLOR_ATTACHMENT0, screenColorTextureNew);
+  // fboScreen write
+  Texture screenColorTextureDefault(winSize, GL_RGB, GL_RGB, "u_screenColorTexDefault", 0);
+  Texture screenDepthTexture(winSize, GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT, "u_screenDepthTex", 1, GL_TEXTURE_2D, depthTexParams);
+  fboScreen.attach2D(GL_COLOR_ATTACHMENT0, screenColorTextureDefault);
   fboScreen.attach2D(GL_DEPTH_ATTACHMENT, screenDepthTexture);
-  fboRT.attach2D(GL_COLOR_ATTACHMENT0, screenColorTextureNew); // NOTE: Writting to and reading from the same texture
+
+  // fboRT write
+  Texture screenColorTextureNew(winSize, GL_RGB, GL_RGB, "u_screenColorTexNew", 1); // Binding along with scscreenColorTextureOld
+  fboRT.attach2D(GL_COLOR_ATTACHMENT0, screenColorTextureNew);
+
+  // fboAverage write (swapping with old render)
+  Texture screenColorTextureFinal(winSize, GL_RGB, GL_RGB, "u_screenColorTexFinal", 0);
   fboAverage.attach2D(GL_COLOR_ATTACHMENT0, screenColorTextureFinal);
 
   fboScreen.bind();
@@ -228,6 +206,7 @@ int main() {
   rtShader.setUniformTexture(screenDepthTexture);
   averageShader.setUniformTexture(screenColorTextureOld);
   averageShader.setUniformTexture(screenColorTextureNew);
+  swapShader.setUniformTexture(screenColorTextureFinal);
 
   Mesh<VertexPT> screenMesh = meshes::screen();
 
@@ -270,6 +249,16 @@ int main() {
       titleTimer = currTime;
     }
 
+    // ===== Drawing the last render to the old texture =========== //
+
+    fboSwap.bind();
+    glClearColor(0.f, 0.f, 0.f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    screenColorTextureFinal.bind();
+    screenMesh.draw(camera, swapShader);
+    screenColorTextureFinal.unbind();
+
     // ===== Default world draw =================================== //
 
     fboScreen.bind();
@@ -288,14 +277,14 @@ int main() {
     glClear(GL_COLOR_BUFFER_BIT);
     glDisable(GL_DEPTH_TEST);
 
-    screenColorTextureNew.bind();
+    screenColorTextureDefault.bind();
     ubo.bind();
 
     rtData.update(rtShader);
     rtShader.setUniform3f(rtLightPosLoc, light.getPosition());
     screenMesh.draw(camera, rtShader);
 
-    screenColorTextureNew.unbind();
+    screenColorTextureDefault.unbind();
     ubo.unbind();
 
     // ===== Average between old and new render (Post-process) ==== //
@@ -341,17 +330,10 @@ int main() {
     global::time += global::dt;
     global::frameId++;
 
-    Texture* currTemp = currOld;
-    currOld = currNew;
-    currNew = currTemp;
-
-    fboScreen.attach2D(GL_COLOR_ATTACHMENT0, *currNew);
-    fboRT.attach2D(GL_COLOR_ATTACHMENT0, *currNew);
-
     // Updating all spheres except the last one (light emitter)
-    for (size_t i = 0; i < MAX_SPHERES - 1; i++) {
-      spheresBuf[i].update();
-    }
+    // for (size_t i = 0; i < MAX_SPHERES - 1; i++) {
+    //   spheresBuf[i].update();
+    // }
   }
 
   ImGui_ImplOpenGL3_Shutdown();

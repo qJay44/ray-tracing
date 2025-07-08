@@ -16,5 +16,6 @@ void main() {
   vec4 accumulatedAverage = colorOld * (1.f - weight) + colorNew * weight;
 
   FragColor = accumulatedAverage;
+  // FragColor = colorNew;
 }
 

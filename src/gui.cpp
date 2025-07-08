@@ -36,14 +36,23 @@ void gui::draw() {
 
   Begin("Settings");
 
-  // ================== Free Camera ====================
+  // ================== Camera =========================
 
   if (!cameraPtr) error("The free camera is not linked to gui");
-  if (TreeNode("Free camera")) {
-    SliderFloat("Near##2",  &cameraPtr->nearPlane, 0.01f, 1.f);
-    SliderFloat("Far##2",   &cameraPtr->farPlane,  10.f , 100.f);
-    SliderFloat("Speed##2", &cameraPtr->speed,     1.f  , 50.f);
-    SliderFloat("FOV##2",   &cameraPtr->fov,       45.f , 179.f);
+  if (TreeNode("Camera")) {
+    const vec3& pos = cameraPtr->position;
+    const vec3& orientation = cameraPtr->orientation;
+
+    SliderFloat("Near",  &cameraPtr->nearPlane, 0.01f, 1.f);
+    SliderFloat("Far",   &cameraPtr->farPlane,  10.f , 100.f);
+    SliderFloat("Speed", &cameraPtr->speed,     1.f  , 50.f);
+    SliderFloat("FOV",   &cameraPtr->fov,       45.f , 179.f);
+
+    SeparatorText("Position");
+    Text("x: %.2f, y: %.2f, z: %.2f", pos.x, pos.y, pos.z);
+
+    SeparatorText("Orientation");
+    Text("x: %.2f, y: %.2f, z: %.2f", orientation.x, orientation.y, orientation.z);
 
     TreePop();
   }
@@ -56,8 +65,9 @@ void gui::draw() {
     ColorEdit3("Sky horizon color", glm::value_ptr(rtDataPtr->skyHorizonColor));
     ColorEdit3("Sky zenith color", glm::value_ptr(rtDataPtr->skyZenithColor));
     SliderInt("Rays per pixel", &rtDataPtr->numRaysPerPixel, 1, 100);
-    SliderFloat("Sun focus", &rtDataPtr->sunFocus, -50.f, 50.f);
-    SliderFloat("Sun intensity", &rtDataPtr->sunIntensity, -50.f, 50.f);
+    SliderInt("Ray bounces", &rtDataPtr->numRayBounces, 1, 100);
+    SliderFloat("Sun focus", &rtDataPtr->sunFocus, -1.f, 1000.f);
+    SliderFloat("Sun intensity", &rtDataPtr->sunIntensity, -1.f, 100.f);
 
     TreePop();
   }
