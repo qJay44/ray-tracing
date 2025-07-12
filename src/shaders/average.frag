@@ -7,6 +7,7 @@ in vec2 texCoord;
 uniform sampler2D u_screenColorTexOld;
 uniform sampler2D u_screenColorTexNew;
 uniform int u_numRenderedFrames;
+uniform int u_newRender;
 
 void main() {
   vec4 colorOld = texture(u_screenColorTexOld, texCoord);
@@ -16,6 +17,5 @@ void main() {
   vec4 accumulatedAverage = colorOld * (1.f - weight) + colorNew * weight;
 
   FragColor = accumulatedAverage;
-  // FragColor = colorNew;
 }
 

@@ -110,18 +110,19 @@ int main() {
   Shader colorShader = Shader::getDefaultShader(SHADER_DEFAULT_TYPE_COLOR_SHADER);
 
   const GLint averageNumRenderedFramesLoc = averageShader.getUniformLoc("u_numRenderedFrames");
+  const GLint averageNewRenderLoc = averageShader.getUniformLoc("u_newRender");
   const GLint rtLightPosLoc = rtShader.getUniformLoc("u_lightPos");
 
   rtShader.setUniform2f("u_resolution", vec2(winSize));
 
   RayTracingData rtData;
-  rtData.groundColor = vec3(0.034f);
-  rtData.skyHorizonColor = {0.007f, 0.058f, 0.098f};
-  rtData.skyZenithColor = {0.f, 0.023f, 0.025f};
-  rtData.numRaysPerPixel = 10;
-  rtData.numRayBounces = 5;
-  rtData.sunFocus = 550.f;
-  rtData.sunIntensity = 50.f;
+  rtData.groundColor = vec3(0.211f);
+  rtData.skyHorizonColor = {0.005f, 0.62f, 1.f};
+  rtData.skyZenithColor = {0.f, 0.186f, 0.48f};
+  rtData.numRaysPerPixel = 5;
+  rtData.numRayBounces = 4;
+  rtData.sunFocus = 500.f;
+  rtData.sunIntensity = 10.f;
 
   // ===== Light ================================================ //
 
@@ -129,7 +130,8 @@ int main() {
 
   // ===== Cameras ============================================== //
 
-  Camera cameraScene({-3.29f, 11.16f, 2.74f}, {0.64f, 0.02f, -0.81f}, 100.f);
+  Camera cameraScene({-1.85f, 10.87f, 0.71f}, {0.89f,-0.26f, -0.46f}, 100.f);
+  // Camera cameraScene({-3.29f, 11.16f, 2.74f}, {0.64f, 0.02f, -0.81f}, 100.f);
   cameraScene.setFarPlane(100.f);
   cameraScene.setSpeed(5.f);
 
@@ -297,6 +299,7 @@ int main() {
     screenColorTextureNew.bind();
 
     averageShader.setUniform1i(averageNumRenderedFramesLoc, global::frameId);
+    averageShader.setUniform1i(averageNewRenderLoc, global::newRender);
 
     screenMesh.draw(camera, averageShader);
 
@@ -329,6 +332,9 @@ int main() {
 
     global::time += global::dt;
     global::frameId++;
+
+    if (global::newRender)
+      global::frameId = 1;
 
     // Updating all spheres except the last one (light emitter)
     // for (size_t i = 0; i < MAX_SPHERES - 1; i++) {

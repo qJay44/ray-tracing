@@ -35,7 +35,7 @@ struct HitInfo {
 };
 
 const RayTracingMaterial rtMaterialInit = RayTracingMaterial(vec4(0.f), vec3(0.f), 0.f);
-const HitInfo hitInfoInit = HitInfo(false, FLT_MAX, vec3(0.f), vec3(0.f), rtMaterialInit);
+const HitInfo hitInfoInit = HitInfo(false, 0.f, vec3(0.f), vec3(0.f), rtMaterialInit);
 
 uniform vec2 u_resolution;
 uniform vec3 u_lightPos;
@@ -75,9 +75,10 @@ Ray calcRay() {
 
 HitInfo raySphere(Ray ray, vec3 sphereCenter, float sphereRadius) {
   HitInfo hitInfo = hitInfoInit;
+  hitInfo.dst = 0.f;
   vec3 offsetRayOrigin = ray.origin - sphereCenter;
 
-  float a = 1.f;
+  float a = dot(ray.dir, ray.dir);
   float b = 2.f * dot(offsetRayOrigin, ray.dir);
   float c = dot(offsetRayOrigin, offsetRayOrigin) - sphereRadius * sphereRadius;
   float discriminant = b * b - 4.f * a * c;
@@ -98,6 +99,7 @@ HitInfo raySphere(Ray ray, vec3 sphereCenter, float sphereRadius) {
 
 HitInfo calcRayCollision(Ray ray) {
   HitInfo closestHit = hitInfoInit;
+  closestHit.dst = FLT_MAX;
 
   for (int i = 0; i < MAX_SPHERES; i++) {
     Sphere sphere = spheres[i];
@@ -129,7 +131,7 @@ float randomValue() {
 
 float randomValueNormalDistribution() {
   float theta = 2.f * PI * randomValue();
-  float rho = sqrt(-2 * log(randomValue()));
+  float rho = sqrt(-2.f * log(randomValue()));
   return rho * cos(theta);
 }
 
@@ -174,7 +176,7 @@ vec3 trace(Ray ray) {
     HitInfo hitInfo = calcRayCollision(ray);
     if (hitInfo.didHit) {
       ray.origin = hitInfo.hitPoint;
-      ray.dir = randomHemisphereDirection(hitInfo.normal);
+      ray.dir = normalize(hitInfo.normal + randomDirection());
 
       RayTracingMaterial material = hitInfo.material;
       vec3 emittedLight = material.emissionColor * material.emissionStrength;
@@ -191,11 +193,15 @@ vec3 trace(Ray ray) {
 
 void main() {
   Ray ray = calcRay();
-  vec3 color = texture(u_screenColorTexDefault, texCoord).rgb;
+  vec3 color = vec3(0.f);
+  // vec3 color = texture(u_screenColorTexDefault, texCoord).rgb;
 
+  vec3 totalIncomingLight = vec3(0.f);
   for (int i = 0; i < u_numRaysPerPixel; i++) {
-    color += trace(ray);
+    totalIncomingLight += trace(ray);
   }
+
+  color = totalIncomingLight / u_numRaysPerPixel;
 
   FragColor = vec4(color, 1.f);
 }

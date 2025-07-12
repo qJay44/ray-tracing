@@ -6,12 +6,12 @@ namespace scenes {
 
 void scene1(Sphere* spheresBuf) {
   constexpr vec4 palette[MAX_SPHERES] = {
-    vec4(1.f, 0.f, 1.f, 1.f),
-    vec4(0.f),
-    vec4(0.f, 1.f, 0.f, 1.f),
-    vec4(0.f, 0.f, 1.f, 1.f),
-    vec4(1.f, 0.f, 0.f, 1.f),
-    vec4(1.f)
+    {1.00f, 0.00f, 1.00f, 1.f}, // Purple
+    {0.11f, 0.11f, 0.11f, 1.f}, // Black
+    {0.00f, 1.00f, 0.00f, 1.f}, // Green
+    {0.00f, 1.00f, 1.00f, 1.f}, // Blue
+    {1.00f, 0.00f, 0.00f, 1.f}, // Red
+    {1.00f, 1.00f, 1.00f, 1.f}  // White
   };
 
   RayTracingMaterial bigSphereMaterial;

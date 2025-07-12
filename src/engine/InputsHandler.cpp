@@ -37,6 +37,11 @@ void InputsHandler::keyCallback(GLFWwindow* window, int key, int scancode, int a
         CameraStorage::helper1->orientation = CameraStorage::scene->getForward();
       }
       break;
+    case GLFW_KEY_C:
+      if (action == GLFW_PRESS) {
+        global::newRender = !global::newRender;
+      }
+      break;
   }
 }
 

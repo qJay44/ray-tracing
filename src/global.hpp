@@ -18,6 +18,7 @@ extern bool sceneCamera;
 extern bool drawWireframe;
 extern bool drawNormals;
 extern bool drawGlobalAxis;
+extern bool newRender;
 
 }// global
 
