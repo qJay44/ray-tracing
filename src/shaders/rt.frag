@@ -3,7 +3,9 @@
 #define FLT_MAX 3.4028235e38f
 #define PI 3.141592265359f
 
-#define MAX_SPHERES 6u
+#define NUM_SPHERES 6u
+#define MAX_TRIANGLES 500u
+#define NUM_MESHES 1u
 
 out vec4 FragColor;
 
@@ -23,6 +25,24 @@ struct RayTracingMaterial {
 struct Sphere {
   vec3 pos;
   float r;
+  RayTracingMaterial material;
+};
+
+struct Triangle {
+  vec3 a;
+  vec3 b;
+  vec3 c;
+  vec3 normalA;
+  vec3 normalB;
+  vec3 normalC;
+  RayTracingMaterial material;
+};
+
+struct MeshInfo {
+  uint firstTriangleIndex;
+  uint numTriangles;
+  vec3 boundsMin;
+  vec3 boundsMax;
   RayTracingMaterial material;
 };
 
@@ -53,7 +73,15 @@ uniform float u_sunFocus;
 uniform float u_sunIntensity;
 
 layout(std140) uniform u_spheresBlock {
-  Sphere spheres[MAX_SPHERES];
+  Sphere spheres[NUM_SPHERES];
+};
+
+layout(std140) uniform u_trianglesBlock {
+  Triangle triangles[MAX_TRIANGLES];
+};
+
+layout(std140) uniform u_meshesInfosBlock {
+  MeshInfo meshesInfos[NUM_MESHES];
 };
 
 vec3 calcViewVec() {
@@ -97,17 +125,58 @@ HitInfo raySphere(Ray ray, vec3 sphereCenter, float sphereRadius) {
   return hitInfo;
 }
 
+HitInfo rayTriangle(Ray ray, Triangle tri) {
+  vec3 ab = tri.b - tri.a;
+  vec3 ac = tri.c - tri.a;
+  vec3 triNormal = cross(ab, ac);
+  vec3 ao = ray.origin - tri.a;
+  vec3 dao = cross(ao, ray.dir);
+
+  float determinant = -dot(ray.dir, triNormal);
+  float invDet = 1.f / determinant;
+
+  float dst = dot(ao, triNormal) * invDet;
+  float u =  dot(ac, dao) * invDet;
+  float v = -dot(ab, dao) * invDet;
+  float w = 1.f - u - v;
+
+  HitInfo hitInfo;
+  hitInfo.didHit = determinant >= 1e-6f && dst >= 0.f && u >= 0.f && v >= 0.f && w >= 0.f;
+  hitInfo.hitPoint = ray.origin + ray.dir * dst;
+  hitInfo.normal = normalize(tri.normalA * w + tri.normalB * u + tri.normalC * v);
+  hitInfo.dst = dst;
+
+  return hitInfo;
+}
+
 HitInfo calcRayCollision(Ray ray) {
   HitInfo closestHit = hitInfoInit;
   closestHit.dst = FLT_MAX;
 
-  for (int i = 0; i < MAX_SPHERES; i++) {
+  for (int i = 0; i < NUM_SPHERES; i++) {
     Sphere sphere = spheres[i];
     HitInfo hitInfo = raySphere(ray, sphere.pos, sphere.r);
 
     if (hitInfo.didHit && hitInfo.dst < closestHit.dst) {
       closestHit = hitInfo;
       closestHit.material = sphere.material;
+    }
+  }
+
+  for (int i = 0; i < NUM_MESHES; i++) {
+    MeshInfo meshInfo = meshesInfos[i];
+
+    // if (!rayBoundingBox(ray, meshInfo.boundsMin, meshInfo.boundsMax))
+    //   continue;
+
+    for (int j = 0; j < meshInfo.numTriangles; j++) {
+      Triangle tri = triangles[meshInfo.firstTriangleIndex];
+      HitInfo hitInfo = rayTriangle(ray, tri);
+
+      if (hitInfo.didHit && hitInfo.dst < closestHit.dst) {
+        closestHit = hitInfo;
+        closestHit.material = tri.material;
+      }
     }
   }
 

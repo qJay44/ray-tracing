@@ -1,6 +1,5 @@
 #include "gui.hpp"
 
-#include <algorithm>
 #include <cmath>
 
 #include "glm/gtc/type_ptr.hpp"
@@ -31,6 +30,7 @@ void gui::toggle() { collapsed = !collapsed; }
 void gui::draw() {
   static RunOnce a([]() {
     SetNextWindowPos({0, 0});
+    SetColorEditOptions(ImGuiColorEditFlags_Float);
   });
   SetNextWindowCollapsed(collapsed);
 

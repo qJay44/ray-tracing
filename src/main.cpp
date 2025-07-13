@@ -20,8 +20,10 @@
 #include "engine/RBO.hpp"
 #include "global.hpp"
 #include "gui.hpp"
+#include "objects/MeshRT.hpp"
 #include "objects/RayTracingData.hpp"
 #include "objects/Sphere.hpp"
+#include "objects/Triangle.hpp"
 #include "objects/scenes.hpp"
 #include "utils/clrp.hpp"
 
@@ -116,10 +118,10 @@ int main() {
   rtShader.setUniform2f("u_resolution", vec2(winSize));
 
   RayTracingData rtData;
-  rtData.groundColor = vec3(0.211f);
-  rtData.skyHorizonColor = {0.005f, 0.62f, 1.f};
-  rtData.skyZenithColor = {0.f, 0.186f, 0.48f};
-  rtData.numRaysPerPixel = 5;
+  rtData.groundColor = vec3(0.637f);
+  rtData.skyHorizonColor = {1.000f, 1.000f, 1.000f};
+  rtData.skyZenithColor  = {0.289f, 0.565f, 1.000f};
+  rtData.numRaysPerPixel = 10;
   rtData.numRayBounces = 4;
   rtData.sunFocus = 500.f;
   rtData.sunIntensity = 10.f;
@@ -149,21 +151,29 @@ int main() {
 
   // ===== Spheres ============================================== //
 
-  UBO ubo(1);
-  Sphere* spheresBuf = nullptr;
-  {
-    GLsizeiptr size = sizeof(Sphere) * MAX_SPHERES;
-    GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
+  // UBO uboSpheres(1);
+  // Sphere* spheresBuf = nullptr;
+  // scenes::scene1(spheresBuf, uboSpheres);
 
-    ubo.storage(size, flags);
-    spheresBuf = (Sphere*)ubo.map(size, flags);
-  }
+  // rtShader.setUniformBlock("u_spheresBlock", 0);
+  // uboSpheres.bindBase(0);
+  // uboSpheres.unbind();
 
-  scenes::scene1(spheresBuf);
+  // ===== Meshes =============================================== //
 
-  rtShader.setUniformBlock("u_spheresBlock", 0);
-  ubo.bindBase(0);
-  ubo.unbind();
+  UBO uboTriangles(1);
+  UBO uboMeshesInfos(1);
+  Triangle* trianglesBuf = nullptr;
+  MeshInfo* meshesInfosBuf = nullptr;
+  scenes::scene2(trianglesBuf, meshesInfosBuf, uboTriangles, uboMeshesInfos);
+
+  rtShader.setUniformBlock("u_trianglesBlock", 1);
+  uboTriangles.bindBase(1);
+  uboTriangles.unbind();
+
+  rtShader.setUniformBlock("u_meshesInfosBlock", 2);
+  uboMeshesInfos.bindBase(3);
+  uboMeshesInfos.unbind();
 
   // ===== Framebuffers ========================================= //
 
@@ -280,14 +290,18 @@ int main() {
     glDisable(GL_DEPTH_TEST);
 
     screenColorTextureDefault.bind();
-    ubo.bind();
+    // uboSpheres.bind();
+    uboTriangles.bind();
+    uboMeshesInfos.bind();
 
     rtData.update(rtShader);
     rtShader.setUniform3f(rtLightPosLoc, light.getPosition());
     screenMesh.draw(camera, rtShader);
 
     screenColorTextureDefault.unbind();
-    ubo.unbind();
+    // uboSpheres.unbind();
+    uboTriangles.unbind();
+    uboMeshesInfos.unbind();
 
     // ===== Average between old and new render (Post-process) ==== //
 
@@ -337,7 +351,7 @@ int main() {
       global::frameId = 1;
 
     // Updating all spheres except the last one (light emitter)
-    // for (size_t i = 0; i < MAX_SPHERES - 1; i++) {
+    // for (size_t i = 0; i < NUM_SPHERES - 1; i++) {
     //   spheresBuf[i].update();
     // }
   }
