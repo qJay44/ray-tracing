@@ -9,6 +9,6 @@ struct MeshRT {
   std::vector<Triangle> triangles;
   MeshInfo meshInfo;
 
-  void loadOBJ(const fspath& file, bool printInfo);
+  void loadOBJ(const fspath& file, float scale = 1.f, bool printInfo = false);
 };
 

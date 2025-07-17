@@ -4,14 +4,13 @@
 #include <format>
 #include <direct.h>
 
-#include "engine/UBO.hpp"
-#include "engine/mesh/meshes.hpp"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
-#include "engine/Camera.hpp"
 #include "GLFW/glfw3.h"
+#include "engine/Camera.hpp"
+#include "engine/mesh/meshes.hpp"
 #include "engine/Shader.hpp"
 #include "engine/InputsHandler.hpp"
 #include "engine/CameraStorage.hpp"
@@ -20,11 +19,8 @@
 #include "engine/RBO.hpp"
 #include "global.hpp"
 #include "gui.hpp"
-#include "objects/MeshRT.hpp"
 #include "objects/RayTracingData.hpp"
-#include "objects/Sphere.hpp"
-#include "objects/Triangle.hpp"
-#include "objects/scenes.hpp"
+#include "objects/Scene.hpp"
 #include "utils/clrp.hpp"
 
 using global::window;
@@ -121,8 +117,8 @@ int main() {
   rtData.groundColor = vec3(0.637f);
   rtData.skyHorizonColor = {1.000f, 1.000f, 1.000f};
   rtData.skyZenithColor  = {0.289f, 0.565f, 1.000f};
-  rtData.numRaysPerPixel = 10;
-  rtData.numRayBounces = 4;
+  rtData.numRaysPerPixel = 1;
+  rtData.numRayBounces = 1;
   rtData.sunFocus = 500.f;
   rtData.sunIntensity = 10.f;
 
@@ -148,32 +144,6 @@ int main() {
 
   glfwSetScrollCallback(window, InputsHandler::scrollCallback);
   glfwSetKeyCallback(window, InputsHandler::keyCallback);
-
-  // ===== Spheres ============================================== //
-
-  // UBO uboSpheres(1);
-  // Sphere* spheresBuf = nullptr;
-  // scenes::scene1(spheresBuf, uboSpheres);
-
-  // rtShader.setUniformBlock("u_spheresBlock", 0);
-  // uboSpheres.bindBase(0);
-  // uboSpheres.unbind();
-
-  // ===== Meshes =============================================== //
-
-  UBO uboTriangles(1);
-  UBO uboMeshesInfos(1);
-  Triangle* trianglesBuf = nullptr;
-  MeshInfo* meshesInfosBuf = nullptr;
-  scenes::scene2(trianglesBuf, meshesInfosBuf, uboTriangles, uboMeshesInfos);
-
-  rtShader.setUniformBlock("u_trianglesBlock", 1);
-  uboTriangles.bindBase(1);
-  uboTriangles.unbind();
-
-  rtShader.setUniformBlock("u_meshesInfosBlock", 2);
-  uboMeshesInfos.bindBase(3);
-  uboMeshesInfos.unbind();
 
   // ===== Framebuffers ========================================= //
 
@@ -221,6 +191,11 @@ int main() {
   swapShader.setUniformTexture(screenColorTextureFinal);
 
   Mesh<VertexPT> screenMesh = meshes::screen();
+
+  // ===== Scenes =============================================== //
+
+  Scene scene = Scene::scene2(rtData.numMeshes);
+  scene.setUnifrom(rtShader);
 
   // ============================================================ //
 
@@ -290,18 +265,14 @@ int main() {
     glDisable(GL_DEPTH_TEST);
 
     screenColorTextureDefault.bind();
-    // uboSpheres.bind();
-    uboTriangles.bind();
-    uboMeshesInfos.bind();
+    scene.bind();
 
     rtData.update(rtShader);
     rtShader.setUniform3f(rtLightPosLoc, light.getPosition());
     screenMesh.draw(camera, rtShader);
 
     screenColorTextureDefault.unbind();
-    // uboSpheres.unbind();
-    uboTriangles.unbind();
-    uboMeshesInfos.unbind();
+    scene.unbind();
 
     // ===== Average between old and new render (Post-process) ==== //
 
@@ -349,11 +320,6 @@ int main() {
 
     if (global::newRender)
       global::frameId = 1;
-
-    // Updating all spheres except the last one (light emitter)
-    // for (size_t i = 0; i < NUM_SPHERES - 1; i++) {
-    //   spheresBuf[i].update();
-    // }
   }
 
   ImGui_ImplOpenGL3_Shutdown();

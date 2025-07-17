@@ -2,7 +2,7 @@
 
 // Uniform Buffer Object
 struct UBO {
-  GLuint id;
+  GLuint id = 0;
   GLsizei size = 0;
 
   UBO() {}

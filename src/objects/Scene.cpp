@@ -1,13 +1,11 @@
-#include "scenes.hpp"
+#include "Scene.hpp"
 
 #include "glm/gtc/quaternion.hpp"
 #include "MeshRT.hpp"
 #include "utils/utils.hpp"
 
-namespace scenes {
-
-void scene1(Sphere* spheresBuf, UBO& uboSpheres) {
-  constexpr vec4 palette[NUM_SPHERES] = {
+Scene Scene::scene1(int numSpheres) {
+  constexpr vec4 palette[MAX_SPHERES] = {
     {1.00f, 0.00f, 1.00f, 1.f}, // Purple
     {0.11f, 0.11f, 0.11f, 1.f}, // Black
     {0.00f, 1.00f, 0.00f, 1.f}, // Green
@@ -16,11 +14,17 @@ void scene1(Sphere* spheresBuf, UBO& uboSpheres) {
     {1.00f, 1.00f, 1.00f, 1.f}  // White
   };
 
-  GLsizeiptr size = sizeof(Sphere) * NUM_SPHERES;
+  if ((size_t)numSpheres > MAX_SPHERES)
+    error("[Scene::scene1] The number of spheres [{}] exceeds the limit [{}]", numSpheres, MAX_SPHERES);
+
+  Scene scene;
+
+  GLsizeiptr size = sizeof(Sphere) * MAX_SPHERES;
   GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
 
-  uboSpheres.storage(size, flags);
-  spheresBuf = (Sphere*)uboSpheres.map(size, flags);
+  scene.uboSpheres = UBO(1);
+  scene.uboSpheres.storage(size, flags);
+  scene.spheresBuf = (Sphere*)scene.uboSpheres.map(size, flags);
 
   RayTracingMaterial bigSphereMaterial;
   bigSphereMaterial.color = palette[0];
@@ -32,13 +36,13 @@ void scene1(Sphere* spheresBuf, UBO& uboSpheres) {
   bigSphere.radius = 10.f;
   bigSphere.material = bigSphereMaterial;
 
-  spheresBuf[0] = bigSphere;
+  scene.spheresBuf[0] = bigSphere;
 
   vec3 spawnFromBigSphereCenterDir = global::up;
   glm::quat q = glm::angleAxis(-PI * 0.1f, global::right);
   spawnFromBigSphereCenterDir = q * spawnFromBigSphereCenterDir;
 
-  for (size_t i = 1; i < NUM_SPHERES; i++) {
+  for (int i = 1; i < numSpheres; i++) {
     float r = i * 0.1f;
 
     RayTracingMaterial material;
@@ -51,57 +55,90 @@ void scene1(Sphere* spheresBuf, UBO& uboSpheres) {
     sphere.radius = r;
     sphere.material = material;
 
-    spheresBuf[i] = sphere;
+    scene.spheresBuf[i] = sphere;
     q = glm::angleAxis(PI * 0.03f, global::right);
     spawnFromBigSphereCenterDir = q * spawnFromBigSphereCenterDir;
   }
+
+  return scene;
 }
 
-void scene2(Triangle* trianglesBuf, MeshInfo* meshesInfosBuf, UBO& uboTriangles, UBO& uboMeshesInfos) {
-  MeshRT meshesRT[NUM_MESHES];
-  meshesRT[0].loadOBJ("res/obj/Knight.obj", false);
+Scene Scene::scene2(int& numMeshes) {
+  MeshRT meshesRT[MAX_MESHES];
+  meshesRT[0].loadOBJ("res/obj/Knight.obj", 0.05f);
+  numMeshes = 1;
 
   u32 totalNumTriangles = 0;
-  for (size_t i = 0; i < NUM_MESHES; i++) {
+  for (size_t i = 0; i < MAX_MESHES; i++) {
     totalNumTriangles += meshesRT[i].triangles.size();
 
     if (totalNumTriangles > MAX_TRIANGLES)
       error("[scenes::scene2] Mesh amount of triangles [{}] exceeds the limit [{}]", totalNumTriangles, MAX_TRIANGLES);
   }
 
+  Scene scene;
+
   // Allocate triangles for the shader
   {
     GLsizeiptr size = sizeof(Triangle) * MAX_TRIANGLES;
     GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
 
-    uboTriangles.storage(size, flags);
-    trianglesBuf = (Triangle*)uboTriangles.map(size, flags);
+    scene.uboTriangles = UBO(1);
+    scene.uboTriangles.storage(size, flags);
+    scene.trianglesBuf = (Triangle*)scene.uboTriangles.map(size, flags);
   }
 
   // Allocate meshes for the shader
   {
-    GLsizeiptr size = sizeof(MeshInfo) * NUM_MESHES;
+    GLsizeiptr size = sizeof(MeshInfo) * MAX_MESHES;
     GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
 
-    uboMeshesInfos.storage(size, flags);
-    meshesInfosBuf = (MeshInfo*)uboMeshesInfos.map(size, flags);
+    scene.uboMeshesInfos = UBO(1);
+    scene.uboMeshesInfos.storage(size, flags);
+    scene.meshesInfosBuf = (MeshInfo*)scene.uboMeshesInfos.map(size, flags);
   }
 
   // Fill trianglesBuf and meshInfosBuf
   u32 firstTriangleIndex = 0;
-  for (size_t i = 0; i < NUM_MESHES; i++) {
+  for (int i = 0; i < numMeshes; i++) {
     MeshRT& mesh = meshesRT[i];
     mesh.meshInfo.firstTriangleIndex = firstTriangleIndex;
 
     for (size_t j = 0; j < mesh.triangles.size(); j++) {
-      trianglesBuf[j + firstTriangleIndex] = mesh.triangles[j];
+      scene.trianglesBuf[j + firstTriangleIndex] = mesh.triangles[j];
     }
 
-    meshesInfosBuf[i] = mesh.meshInfo;
+    scene.meshesInfosBuf[i] = mesh.meshInfo;
 
     firstTriangleIndex += mesh.triangles.size();
   }
+
+  return scene;
 }
 
-} // namespace scenes
+void Scene::setUnifrom(const Shader& shader) const {
+  static const GLint spheresBlockLoc     = shader.getUniformBlockIndex("u_spheresBlock");
+  static const GLint trianglesBlockLoc   = shader.getUniformBlockIndex("u_trianglesBlock");
+  static const GLint meshesInfosBlockLoc = shader.getUniformBlockIndex("u_meshesInfosBlock");
+
+  shader.setUniformBlock(spheresBlockLoc, 0);
+  shader.setUniformBlock(trianglesBlockLoc, 1);
+  shader.setUniformBlock(meshesInfosBlockLoc, 2);
+
+  uboSpheres.bindBase(0);
+  uboTriangles.bindBase(1);
+  uboMeshesInfos.bindBase(2);
+}
+
+void Scene::bind() const {
+  uboSpheres.bind();
+  uboTriangles.bind();
+  uboMeshesInfos.bind();
+}
+
+void Scene::unbind() const {
+  uboSpheres.unbind();
+  uboTriangles.unbind();
+  uboMeshesInfos.unbind();
+}
 

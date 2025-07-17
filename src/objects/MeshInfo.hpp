@@ -5,10 +5,8 @@
 struct MeshInfo {
   u32 firstTriangleIndex;
   u32 numTriangles = 0;
-  vec3 boundsMin{FLT_MAX, FLT_MAX, FLT_MAX};
-  float pad1;
-  vec3 boundsMax{FLT_MIN, FLT_MIN, FLT_MIN};
-  float pad2;
+  alignas(16) vec3 boundsMin = vec3(FLT_MAX);
+  alignas(16) vec3 boundsMax = vec3(-FLT_MAX);
   RayTracingMaterial material;
 };
 

@@ -3,9 +3,9 @@
 #define FLT_MAX 3.4028235e38f
 #define PI 3.141592265359f
 
-#define NUM_SPHERES 6u
+#define MAX_SPHERES 6u
 #define MAX_TRIANGLES 500u
-#define NUM_MESHES 1u
+#define MAX_MESHES 1u
 
 out vec4 FragColor;
 
@@ -35,7 +35,6 @@ struct Triangle {
   vec3 normalA;
   vec3 normalB;
   vec3 normalC;
-  RayTracingMaterial material;
 };
 
 struct MeshInfo {
@@ -69,11 +68,13 @@ uniform sampler2D u_screenDepthTex;
 uniform int u_numRaysPerPixel;
 uniform int u_numRenderedFrames;
 uniform int u_numRayBounces;
+uniform int u_numSpheres;
+uniform int u_numMeshes;
 uniform float u_sunFocus;
 uniform float u_sunIntensity;
 
 layout(std140) uniform u_spheresBlock {
-  Sphere spheres[NUM_SPHERES];
+  Sphere spheres[MAX_SPHERES];
 };
 
 layout(std140) uniform u_trianglesBlock {
@@ -81,7 +82,7 @@ layout(std140) uniform u_trianglesBlock {
 };
 
 layout(std140) uniform u_meshesInfosBlock {
-  MeshInfo meshesInfos[NUM_MESHES];
+  MeshInfo meshesInfos[MAX_MESHES];
 };
 
 vec3 calcViewVec() {
@@ -149,11 +150,23 @@ HitInfo rayTriangle(Ray ray, Triangle tri) {
   return hitInfo;
 }
 
+bool rayInBoundingBox(Ray ray, vec3 boundsMin, vec3 boundsMax) {
+  vec3 invDir = 1.f / ray.dir;
+  vec3 tMin = (boundsMin - ray.origin) * invDir;
+  vec3 tMax = (boundsMax - ray.origin) * invDir;
+  vec3 t1 = min(tMin, tMax);
+  vec3 t2 = max(tMin, tMax);
+  float tNear = max(max(t1.x, t1.y), t1.z);
+  float tFar  = min(min(t2.x, t2.y), t2.z);
+
+  return tNear <= tFar;
+}
+
 HitInfo calcRayCollision(Ray ray) {
   HitInfo closestHit = hitInfoInit;
   closestHit.dst = FLT_MAX;
 
-  for (int i = 0; i < NUM_SPHERES; i++) {
+  for (int i = 0; i < u_numSpheres; i++) {
     Sphere sphere = spheres[i];
     HitInfo hitInfo = raySphere(ray, sphere.pos, sphere.r);
 
@@ -163,21 +176,19 @@ HitInfo calcRayCollision(Ray ray) {
     }
   }
 
-  for (int i = 0; i < NUM_MESHES; i++) {
+  for (int i = 0; i < u_numMeshes; i++) {
     MeshInfo meshInfo = meshesInfos[i];
 
-    // if (!rayBoundingBox(ray, meshInfo.boundsMin, meshInfo.boundsMax))
-    //   continue;
+    if (rayInBoundingBox(ray, meshInfo.boundsMin, meshInfo.boundsMax))
+      for (int j = 0; j < meshInfo.numTriangles; j++) {
+        Triangle tri = triangles[meshInfo.firstTriangleIndex + j];
+        HitInfo hitInfo = rayTriangle(ray, tri);
 
-    for (int j = 0; j < meshInfo.numTriangles; j++) {
-      Triangle tri = triangles[meshInfo.firstTriangleIndex];
-      HitInfo hitInfo = rayTriangle(ray, tri);
-
-      if (hitInfo.didHit && hitInfo.dst < closestHit.dst) {
-        closestHit = hitInfo;
-        closestHit.material = tri.material;
+        if (hitInfo.didHit && hitInfo.dst < closestHit.dst) {
+          closestHit = hitInfo;
+          closestHit.material = meshInfo.material;
+        }
       }
-    }
   }
 
   return closestHit;
@@ -250,7 +261,7 @@ vec3 trace(Ray ray) {
       RayTracingMaterial material = hitInfo.material;
       vec3 emittedLight = material.emissionColor * material.emissionStrength;
       incomingLight += emittedLight * rayColor;
-      rayColor *= material.color.xyz;
+      rayColor *= material.color.rgb;
     } else {
       incomingLight += getEnvironmentLight(ray) * rayColor;
       break;
@@ -262,15 +273,14 @@ vec3 trace(Ray ray) {
 
 void main() {
   Ray ray = calcRay();
-  vec3 color = vec3(0.f);
-  // vec3 color = texture(u_screenColorTexDefault, texCoord).rgb;
+  vec3 color = texture(u_screenColorTexDefault, texCoord).rgb;
 
   vec3 totalIncomingLight = vec3(0.f);
   for (int i = 0; i < u_numRaysPerPixel; i++) {
     totalIncomingLight += trace(ray);
   }
 
-  color = totalIncomingLight / u_numRaysPerPixel;
+  color += totalIncomingLight / u_numRaysPerPixel;
 
   FragColor = vec4(color, 1.f);
 }

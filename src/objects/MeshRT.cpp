@@ -1,13 +1,13 @@
 #include "MeshRT.hpp"
-#include "utils/utils.hpp"
-#include <cassert>
 
+#include <cassert>
 #include <tiny_obj_loader.h>
 
+#include "utils/utils.hpp"
 #include "utils/status.hpp"
 #include "utils/clrp.hpp"
 
-void MeshRT::loadOBJ(const fspath& file, bool printInfo) {
+void MeshRT::loadOBJ(const fspath& file, float scale, bool printInfo) {
   tinyobj::ObjReaderConfig readerConfig;
   tinyobj::ObjReader reader;
   status::start("Loading", file.string());
@@ -43,7 +43,7 @@ void MeshRT::loadOBJ(const fspath& file, bool printInfo) {
         tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
         size_t idxVert = 3 * size_t(idx.vertex_index);
         vec3* pos = nullptr;
-        vec3* normal;
+        vec3* normal = nullptr;
         switch (v) {
           case 0:
             pos = &tri.a;
@@ -65,6 +65,7 @@ void MeshRT::loadOBJ(const fspath& file, bool printInfo) {
         p.x = attrib.vertices[idxVert + 0];
         p.y = attrib.vertices[idxVert + 1];
         p.z = attrib.vertices[idxVert + 2];
+        p *= scale;
 
         meshInfo.boundsMin = glm::min(meshInfo.boundsMin, p);
         meshInfo.boundsMax = glm::max(meshInfo.boundsMax, p);
