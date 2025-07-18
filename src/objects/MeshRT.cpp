@@ -6,8 +6,9 @@
 #include "utils/utils.hpp"
 #include "utils/status.hpp"
 #include "utils/clrp.hpp"
+#include "glm/gtc/quaternion.hpp"
 
-void MeshRT::loadOBJ(const fspath& file, float scale, bool printInfo) {
+void MeshRT::loadOBJ(const fspath& file, float scale, const vec3& offset, bool printInfo) {
   tinyobj::ObjReaderConfig readerConfig;
   tinyobj::ObjReader reader;
   status::start("Loading", file.string());
@@ -66,6 +67,7 @@ void MeshRT::loadOBJ(const fspath& file, float scale, bool printInfo) {
         p.y = attrib.vertices[idxVert + 1];
         p.z = attrib.vertices[idxVert + 2];
         p *= scale;
+        p += offset;
 
         meshInfo.boundsMin = glm::min(meshInfo.boundsMin, p);
         meshInfo.boundsMax = glm::max(meshInfo.boundsMax, p);
@@ -119,6 +121,44 @@ void MeshRT::loadOBJ(const fspath& file, float scale, bool printInfo) {
   // ==================================== //
 
   status::end(true);
+}
 
+void MeshRT::createQuad(const vec3& bottomLeft, const vec3& axisY, const vec3& axisX, const vec3& normal, const vec2& size, const RayTracingMaterial& material) {
+  Triangle tri1;
+  tri1.a = bottomLeft + axisY * size.y;
+  tri1.b = bottomLeft;
+  tri1.c = bottomLeft + axisY * size.y + axisX * size.x;
+  tri1.normalA = normal;
+  tri1.normalB = normal;
+  tri1.normalC = normal;
+  triangles.push_back(tri1);
 
+  Triangle tri2;
+  tri2.a = bottomLeft + axisX * size.x;
+  tri2.b = bottomLeft + axisY * size.y + axisX * size.x;
+  tri2.c = bottomLeft;
+  tri2.normalA = normal;
+  tri2.normalB = normal;
+  tri2.normalC = normal;
+  triangles.push_back(tri2);
+
+  meshInfo.numTriangles = 2;
+  meshInfo.boundsMin = min(min(min(meshInfo.boundsMin, tri1.a), tri1.b), tri1.c);
+  meshInfo.boundsMin = min(min(min(meshInfo.boundsMin, tri2.a), tri2.b), tri2.c);
+  meshInfo.boundsMax = max(max(max(meshInfo.boundsMax, tri1.a), tri1.b), tri1.c);
+  meshInfo.boundsMax = max(max(max(meshInfo.boundsMax, tri2.a), tri2.b), tri2.c);
+  meshInfo.material = material;
+}
+
+void MeshRT::rotate(float rad, const vec3& axis) {
+  glm::quat q = glm::angleAxis(rad, axis);
+
+  for (Triangle& tri : triangles) {
+    tri.a = q * tri.a;
+    tri.b = q * tri.b;
+    tri.c = q * tri.c;
+    tri.normalA = q * tri.normalA;
+    tri.normalB = q * tri.normalB;
+    tri.normalC = q * tri.normalC;
+  }
 }

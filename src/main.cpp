@@ -118,7 +118,7 @@ int main() {
   rtData.skyHorizonColor = {1.000f, 1.000f, 1.000f};
   rtData.skyZenithColor  = {0.289f, 0.565f, 1.000f};
   rtData.numRaysPerPixel = 1;
-  rtData.numRayBounces = 1;
+  rtData.numRayBounces = 2;
   rtData.sunFocus = 500.f;
   rtData.sunIntensity = 10.f;
 
@@ -128,14 +128,15 @@ int main() {
 
   // ===== Cameras ============================================== //
 
-  Camera cameraScene({-1.85f, 10.87f, 0.71f}, {0.89f,-0.26f, -0.46f}, 100.f);
+  Camera cameraScene({-1.72f, 8.53f, 84.28f}, {0.00f,-0.11f, -1.03f}, 100.f);
+  // Camera cameraScene({-1.85f, 10.87f, 0.71f}, {0.89f,-0.26f, -0.46f}, 100.f);
   // Camera cameraScene({-3.29f, 11.16f, 2.74f}, {0.64f, 0.02f, -0.81f}, 100.f);
   cameraScene.setFarPlane(100.f);
-  cameraScene.setSpeed(5.f);
+  cameraScene.setSpeed(20.f);
 
   Camera cameraHelper1({-5.f, 10.f, 5.f}, {0.48f, 0.05f, -0.91f}, 100.f);
   cameraHelper1.setFarPlane(100.f);
-  cameraHelper1.setSpeed(5.f);
+  cameraHelper1.setSpeed(20.f);
 
   CameraStorage::scene = &cameraScene;
   CameraStorage::helper1 = &cameraHelper1;
@@ -194,7 +195,7 @@ int main() {
 
   // ===== Scenes =============================================== //
 
-  Scene scene = Scene::scene2(rtData.numMeshes);
+  Scene scene = Scene::scene3(rtData);
   scene.setUnifrom(rtShader);
 
   // ============================================================ //

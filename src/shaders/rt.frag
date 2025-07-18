@@ -5,7 +5,7 @@
 
 #define MAX_SPHERES 6u
 #define MAX_TRIANGLES 500u
-#define MAX_MESHES 1u
+#define MAX_MESHES 10u
 
 out vec4 FragColor;
 
@@ -70,6 +70,7 @@ uniform int u_numRenderedFrames;
 uniform int u_numRayBounces;
 uniform int u_numSpheres;
 uniform int u_numMeshes;
+uniform int u_enableEnvironmentalLight;
 uniform float u_sunFocus;
 uniform float u_sunIntensity;
 
@@ -263,7 +264,8 @@ vec3 trace(Ray ray) {
       incomingLight += emittedLight * rayColor;
       rayColor *= material.color.rgb;
     } else {
-      incomingLight += getEnvironmentLight(ray) * rayColor;
+      if (u_enableEnvironmentalLight)
+        incomingLight += getEnvironmentLight(ray) * rayColor;
       break;
     }
   }

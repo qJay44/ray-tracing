@@ -10,6 +10,7 @@ struct RayTracingData {
   int numRayBounces;
   int numSpheres = 0;
   int numMeshes = 0;
+  bool enableEnvLight = true;
   float sunFocus;
   float sunIntensity;
 
@@ -22,6 +23,7 @@ struct RayTracingData {
     const GLint numRayBouncesLoc     = shader.getUniformLoc("u_numRayBounces");
     const GLint numSpheresLoc        = shader.getUniformLoc("u_numSpheres");
     const GLint numMeshesLoc         = shader.getUniformLoc("u_numMeshes");
+    const GLint enableEnvLightLoc    = shader.getUniformLoc("u_enableEnvironmentalLight");
     const GLint sunFocusLoc          = shader.getUniformLoc("u_sunFocus");
     const GLint sunIntensityLoc      = shader.getUniformLoc("u_sunIntensity");
 
@@ -33,6 +35,7 @@ struct RayTracingData {
     shader.setUniform1i(numRayBouncesLoc, numRayBounces);
     shader.setUniform1i(numSpheresLoc, numSpheres);
     shader.setUniform1i(numMeshesLoc, numMeshes);
+    shader.setUniform1i(enableEnvLightLoc, enableEnvLight);
     shader.setUniform1f(sunFocusLoc, sunFocus);
     shader.setUniform1f(sunIntensityLoc, sunIntensity);
   }

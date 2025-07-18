@@ -5,7 +5,7 @@
 #include "RayTracingMaterial.hpp"
 
 struct Sphere {
-  vec3 pos;
+  alignas(16) vec3 pos;
   float radius;
   RayTracingMaterial material;
 

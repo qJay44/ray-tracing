@@ -68,6 +68,7 @@ void gui::draw() {
     SliderInt("Ray bounces", &rtDataPtr->numRayBounces, 1, 100);
     SliderFloat("Sun focus", &rtDataPtr->sunFocus, -1.f, 1000.f);
     SliderFloat("Sun intensity", &rtDataPtr->sunIntensity, -1.f, 100.f);
+    Checkbox("Enable environmental light", &rtDataPtr->enableEnvLight);
 
     TreePop();
   }
