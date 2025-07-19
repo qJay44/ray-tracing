@@ -1,5 +1,6 @@
 #include "Scene.hpp"
 
+#include "Room.hpp"
 #include "glm/gtc/quaternion.hpp"
 #include "MeshRT.hpp"
 #include "utils/utils.hpp"
@@ -14,9 +15,7 @@ Scene Scene::scene1(RayTracingData& rtData) {
     {1.00f, 1.00f, 1.00f, 1.f}  // White
   };
 
-  if ((size_t)rtData.numSpheres > MAX_SPHERES)
-    error("[Scene::scene1] The number of spheres [{}] exceeds the limit [{}]", rtData.numSpheres, MAX_SPHERES);
-
+  rtData.numSpheres = 6;
   rtData.enableEnvLight = true;
 
   Scene scene;
@@ -99,84 +98,128 @@ Scene Scene::scene2(RayTracingData& rtData) {
 }
 
 Scene Scene::scene3(RayTracingData& rtData) {
-  rtData.numMeshes = 8;
+  rtData.numMeshes = 1 + ROOM_TOTAL_MESHES; // Knight + room
   rtData.enableEnvLight = false;
-
-  MeshRT* meshesRT = new MeshRT[rtData.numMeshes];
-
-  // Knight
-  meshesRT[0].loadOBJ("res/obj/Knight.obj", 0.08f, {0.f, -20.f, 0.f});
-  meshesRT[0].rotate(PI_3, -global::up);
-
-  // ==================== Walls ==================== //
-
-  vec3 roomSize = vec3(20.f);
-  vec3 roomCenter{0.f, 0.f, 0.f};
-  vec2 wallSize = vec2{roomSize.x, roomSize.y} * 2.f;
-
-  RayTracingMaterial wallRed;
-  wallRed.color = {global::red, 1.f};
-
-  RayTracingMaterial wallBlue;
-  wallBlue.color = {global::blue, 1.f};
-
-  RayTracingMaterial wallGray;
-  wallGray.color = vec4(vec3(0.1f), 1.f);
-
-  RayTracingMaterial wallBlack;
-  wallBlack.color = vec4(vec3(0.f), 1.f);
-
-  RayTracingMaterial wallWhite;
-  wallWhite.color = vec4(1.f);
-
-  RayTracingMaterial wallGreen;
-  wallGreen.color = {global::green, 1.f};
-
-  RayTracingMaterial wallLamp;
-  wallLamp.color = wallWhite.color;
-  wallLamp.emissionColor = wallLamp.color;
-  wallLamp.emissionStrength = 15.f;
-
-  meshesRT[1].createQuad({roomCenter.x - roomSize.x, roomCenter.y - roomSize.y, roomCenter.z + roomSize.z},  global::up,      -global::forward,  global::right  , wallSize, wallRed);   // Left wall
-  meshesRT[2].createQuad({roomCenter.x + roomSize.x, roomCenter.y - roomSize.y, roomCenter.z - roomSize.z},  global::up,       global::forward, -global::right  , wallSize, wallBlue);  // Right wall
-  meshesRT[3].createQuad({roomCenter.x - roomSize.x, roomCenter.y - roomSize.y, roomCenter.z - roomSize.z},  global::up,       global::right  ,  global::forward, wallSize, wallGray);  // Back wall
-  meshesRT[4].createQuad({roomCenter.x + roomSize.x, roomCenter.y - roomSize.y, roomCenter.z + roomSize.z},  global::up,      -global::right  , -global::forward, wallSize, wallBlack); // Front wall
-  meshesRT[5].createQuad({roomCenter.x - roomSize.x, roomCenter.y + roomSize.y, roomCenter.z + roomSize.z},  global::right,   -global::forward, -global::up     , wallSize, wallWhite); // Top wall (ceiling)
-  meshesRT[6].createQuad({roomCenter.x - roomSize.x, roomCenter.y - roomSize.y, roomCenter.z + roomSize.z}, -global::forward,  global::right  ,  global::up     , wallSize, wallGreen); // Bottom wall (floor)
-
-  // Lamp
-  meshesRT[7].createQuad({roomCenter.x - roomSize.x * 0.5f, roomCenter.y + roomSize.y * 0.9f, roomCenter.z + roomSize.z * 0.5f}, global::right, -global::forward, -global::up, wallSize * 0.5f, wallLamp);
-
-  // =============================================== //
-
   u32 totalNumTriangles = 0;
-  for (int i = 0; i < rtData.numMeshes; i++) {
-    totalNumTriangles += meshesRT[i].triangles.size();
 
-    if (totalNumTriangles > MAX_TRIANGLES)
-      error("[Scene::scene2] Mesh amount of triangles [{}] exceeds the limit [{}]", totalNumTriangles, MAX_TRIANGLES);
-  }
+  // ===== Knight meshes ==================================== //
+
+  MeshRT rtMeshKnight;
+  rtMeshKnight.loadOBJ("res/obj/Knight.obj", 0.05f, {0.f, -10.f, 0.f});
+  rtMeshKnight.rotate(PI_3, -global::up);
+
+  totalNumTriangles += rtMeshKnight.triangles.size();
+
+  // ===== Room meshes ====================================== //
+
+  Room room(vec3(0.f), 20.f, 20.f, 20.f);
+  const MeshRT* rtRoomMeshes = room.getMeshes();
+
+  // ===== Preparing scene ================================== //
+
+  totalNumTriangles += ROOM_TOTAL_TRIANGLES;
+
+  if (totalNumTriangles > MAX_TRIANGLES)
+    error("[Scene::scene2] Mesh amount of triangles [{}] exceeds the limit [{}]", totalNumTriangles, MAX_TRIANGLES);
 
   Scene scene;
   scene.allocateTriangles();
   scene.allocateMeshes();
 
-  // Fill trianglesBuf and meshInfosBuf
+  // ===== Add knight to buffers ============================ //
+
   u32 firstTriangleIndex = 0;
-  for (int i = 0; i < rtData.numMeshes; i++) {
-    MeshRT& mesh = meshesRT[i];
+  rtMeshKnight.meshInfo.firstTriangleIndex = firstTriangleIndex;
+
+  for (size_t i = 0; i < rtMeshKnight.triangles.size(); i++)
+    scene.trianglesBuf[i + firstTriangleIndex] = rtMeshKnight.triangles[i];
+
+  scene.meshesInfosBuf[0] = rtMeshKnight.meshInfo;
+  firstTriangleIndex += rtMeshKnight.triangles.size();
+
+  // ===== Add room to buffers ============================== //
+
+  for (size_t i = 0; i < ROOM_TOTAL_MESHES; i++) {
+    MeshRT mesh = rtRoomMeshes[i];
     mesh.meshInfo.firstTriangleIndex = firstTriangleIndex;
 
-    for (size_t j = 0; j < mesh.triangles.size(); j++) {
+    for (size_t j = 0; j < mesh.triangles.size(); j++)
       scene.trianglesBuf[j + firstTriangleIndex] = mesh.triangles[j];
-    }
+
+    scene.meshesInfosBuf[i + 1] = mesh.meshInfo;
+
+    firstTriangleIndex += mesh.triangles.size();
+  }
+
+  return scene;
+}
+
+Scene Scene::scene4(RayTracingData& rtData) {
+  rtData.numMeshes = ROOM_TOTAL_MESHES;
+  rtData.numSpheres = 4;
+  rtData.enableEnvLight = false;
+  rtData.numRaysPerPixel = 5;
+  rtData.numRayBounces = 5;
+
+  // ===== Room meshes ====================================== //
+
+  Room room(vec3(0.f), 50.f, 20.f, 20.f);
+  room.update(ROOM_IDX_FLOOR, {vec4(1.f), vec3(0.f), 0.f, 0.f, RT_MATERIAL_FLAG_CHECKERED_PATTERN});
+  room.update(ROOM_IDX_RIGHT, {{global::green, 1.f}});
+  room.update(ROOM_IDX_FRONT, {{global::blue, 1.f}});
+  const MeshRT* rtRoomMeshes = room.getMeshes();
+
+  // ===== Preparing scene ================================== //
+
+  u32 totalNumTriangles = 0;
+  totalNumTriangles += ROOM_TOTAL_TRIANGLES;
+
+  if (totalNumTriangles > MAX_TRIANGLES)
+    error("[Scene::scene2] Mesh amount of triangles [{}] exceeds the limit [{}]", totalNumTriangles, MAX_TRIANGLES);
+
+  Scene scene;
+  scene.allocateSpheres();
+  scene.allocateTriangles();
+  scene.allocateMeshes();
+
+  // ===== Spheres ========================================== //
+
+  RayTracingMaterial material;
+  material.color = vec4(1.f);
+  material.emissionColor = vec3(0.f);
+  material.emissionStrength = 0.f;
+
+  float r = 5.f;
+  vec3 initPos = vec3(0.f);
+  vec3 offset = vec3(0.f);
+  initPos.x -= r * rtData.numSpheres;
+
+  for (int i = 0; i < rtData.numSpheres; i++) {
+    material.smoothness = (float)i / (rtData.numSpheres - 1);
+
+    Sphere sphere;
+    sphere.pos = initPos + offset;
+    sphere.radius = r;
+    sphere.material = material;
+
+    scene.spheresBuf[i] = sphere;
+    offset.x += r * 2.f + 2.f;
+  }
+
+  // ===== Add room to buffers ============================== //
+
+  u32 firstTriangleIndex = 0;
+  for (int i = 0; i < rtData.numMeshes; i++) {
+    MeshRT mesh = rtRoomMeshes[i];
+    mesh.meshInfo.firstTriangleIndex = firstTriangleIndex;
+
+    for (size_t j = 0; j < mesh.triangles.size(); j++)
+      scene.trianglesBuf[j + firstTriangleIndex] = mesh.triangles[j];
 
     scene.meshesInfosBuf[i] = mesh.meshInfo;
 
     firstTriangleIndex += mesh.triangles.size();
   }
-
-  delete[] meshesRT;
 
   return scene;
 }

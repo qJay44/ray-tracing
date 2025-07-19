@@ -17,6 +17,7 @@ public:
   static Scene scene1(RayTracingData& rtData);
   static Scene scene2(RayTracingData& rtData);
   static Scene scene3(RayTracingData& rtData);
+  static Scene scene4(RayTracingData& rtData);
 
   void setUnifrom(const Shader& shader) const;
   void bind() const;

@@ -66,9 +66,12 @@ void gui::draw() {
     ColorEdit3("Sky zenith color", glm::value_ptr(rtDataPtr->skyZenithColor));
     SliderInt("Rays per pixel", &rtDataPtr->numRaysPerPixel, 1, 100);
     SliderInt("Ray bounces", &rtDataPtr->numRayBounces, 1, 100);
+
+    Checkbox("Enable environmental light", &rtDataPtr->enableEnvLight);
+    BeginDisabled(!rtDataPtr->enableEnvLight);
     SliderFloat("Sun focus", &rtDataPtr->sunFocus, -1.f, 1000.f);
     SliderFloat("Sun intensity", &rtDataPtr->sunIntensity, -1.f, 100.f);
-    Checkbox("Enable environmental light", &rtDataPtr->enableEnvLight);
+    EndDisabled();
 
     TreePop();
   }

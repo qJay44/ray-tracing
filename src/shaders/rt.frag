@@ -7,6 +7,8 @@
 #define MAX_TRIANGLES 500u
 #define MAX_MESHES 10u
 
+#define RT_MATERIAL_FLAG_CHECKERED_PATTERN 1u
+
 out vec4 FragColor;
 
 in vec2 texCoord;
@@ -20,6 +22,8 @@ struct RayTracingMaterial {
   vec4 color;
   vec3 emissionColor;
   float emissionStrength;
+  float smoothness;
+  uint flags;
 };
 
 struct Sphere {
@@ -53,7 +57,7 @@ struct HitInfo {
   RayTracingMaterial material;
 };
 
-const RayTracingMaterial rtMaterialInit = RayTracingMaterial(vec4(0.f), vec3(0.f), 0.f);
+const RayTracingMaterial rtMaterialInit = RayTracingMaterial(vec4(0.f), vec3(0.f), 0.f, 0.f, 0);
 const HitInfo hitInfoInit = HitInfo(false, 0.f, vec3(0.f), vec3(0.f), rtMaterialInit);
 
 uniform vec2 u_resolution;
@@ -197,11 +201,6 @@ HitInfo calcRayCollision(Ray ray) {
 
 uint rngState = uint(gl_FragCoord.x + gl_FragCoord.y * u_resolution.x) + u_numRenderedFrames * 719393;
 
-// float randomValue() {
-//   rngState *= (rngState + 195439u) * (rngState + 124395u) * (rngState + 845921u);
-//   return rngState / 4294967295.f;
-// }
-
 float randomValue() {
   rngState = rngState * 747796405 + 2891336453;
   uint result = ((rngState >> ((rngState >> 28) + 4)) ^ rngState) * 277803737;
@@ -215,14 +214,6 @@ float randomValueNormalDistribution() {
   float rho = sqrt(-2.f * log(randomValue()));
   return rho * cos(theta);
 }
-
-// vec3 randomDirection() {
-//   return normalize(vec3(
-//     randomValue() * 2.f - 1.f,
-//     randomValue() * 2.f - 1.f,
-//     randomValue() * 2.f - 1.f
-//   ));
-// }
 
 vec3 randomDirection() {
   return normalize(vec3(
@@ -256,13 +247,21 @@ vec3 trace(Ray ray) {
   for (int i = 0; i < u_numRayBounces; i++) {
     HitInfo hitInfo = calcRayCollision(ray);
     if (hitInfo.didHit) {
-      ray.origin = hitInfo.hitPoint;
-      ray.dir = normalize(hitInfo.normal + randomDirection());
-
       RayTracingMaterial material = hitInfo.material;
+      if (material.flags & RT_MATERIAL_FLAG_CHECKERED_PATTERN) {
+        vec2 c = mod(floor(hitInfo.hitPoint.xz * 0.35f), 2.f);
+        material.color = c.x == c.y ? material.color : vec4(material.emissionColor, 1.f);
+      }
+
+      ray.origin = hitInfo.hitPoint;
+      vec3 diffuseDir = normalize(hitInfo.normal + randomDirection());
+      vec3 specularDir = reflect(ray.dir, hitInfo.normal);
+      ray.dir = mix(diffuseDir, specularDir, hitInfo.material.smoothness);
+
       vec3 emittedLight = material.emissionColor * material.emissionStrength;
       incomingLight += emittedLight * rayColor;
       rayColor *= material.color.rgb;
+
     } else {
       if (u_enableEnvironmentalLight)
         incomingLight += getEnvironmentLight(ray) * rayColor;
