@@ -21,10 +21,13 @@ struct Ray {
 struct RayTracingMaterial {
   vec4 color;
   vec3 emissionColor;
+  vec3 specularColor;
   float emissionStrength;
   float smoothness;
+  float specularProbability;
   uint flags;
 };
+const RayTracingMaterial rtMaterialInit = RayTracingMaterial(vec4(0.f), vec3(0.f), vec3(0.f), 0.f, 0.f, 0.f, 0);
 
 struct Sphere {
   vec3 pos;
@@ -56,8 +59,6 @@ struct HitInfo {
   vec3 normal;
   RayTracingMaterial material;
 };
-
-const RayTracingMaterial rtMaterialInit = RayTracingMaterial(vec4(0.f), vec3(0.f), 0.f, 0.f, 0);
 const HitInfo hitInfoInit = HitInfo(false, 0.f, vec3(0.f), vec3(0.f), rtMaterialInit);
 
 uniform vec2 u_resolution;
@@ -259,11 +260,12 @@ vec3 trace(Ray ray) {
       ray.origin = hitInfo.hitPoint;
       vec3 diffuseDir = normalize(hitInfo.normal + randomDirection());
       vec3 specularDir = reflect(ray.dir, hitInfo.normal);
-      ray.dir = mix(diffuseDir, specularDir, hitInfo.material.smoothness);
+      float isSpecularBounce = float(material.specularProbability >= randomValue());
+      ray.dir = mix(diffuseDir, specularDir, hitInfo.material.smoothness * isSpecularBounce);
 
       vec3 emittedLight = material.emissionColor * material.emissionStrength;
       incomingLight += emittedLight * rayColor;
-      rayColor *= material.color.rgb;
+      rayColor *= mix(material.color.rgb, material.specularColor, isSpecularBounce);
 
     } else {
       incomingLight += getEnvironmentLight(ray) * rayColor;

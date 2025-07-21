@@ -91,7 +91,7 @@ void scene1(RayTracingData& rtData) {
     sphere.radius = r;
     sphere.material = material;
 
-    spheresBuf[i] = sphere;
+    updateSpheresBuffer(sphere, i);
     q = glm::angleAxis(PI * 0.03f, global::right);
     spawnFromBigSphereCenterDir = q * spawnFromBigSphereCenterDir;
   }
@@ -164,8 +164,12 @@ void scene4(RayTracingData& rtData) {
 
   // ===== Room meshes ====================================== //
 
+  RayTracingMaterial floorMaterial;
+  floorMaterial.color = vec4(1.f);
+  floorMaterial.flags |= RT_MATERIAL_FLAG_CHECKERED_PATTERN;
+
   rtData.room = Room(vec3(0.f), 50.f, 20.f, 20.f);
-  rtData.room.updateMaterial(ROOM_IDX_FLOOR, {vec4(1.f), vec3(0.f), 0.f, 0.f, RT_MATERIAL_FLAG_CHECKERED_PATTERN});
+  rtData.room.updateMaterial(ROOM_IDX_FLOOR, floorMaterial);
   rtData.room.updateMaterial(ROOM_IDX_RIGHT, {{global::green, 1.f}});
   rtData.room.updateMaterial(ROOM_IDX_FRONT, {{global::blue, 1.f}});
   MeshRT* rtRoomMeshes = rtData.room.getMeshes();
@@ -202,7 +206,7 @@ void scene4(RayTracingData& rtData) {
     sphere.radius = r;
     sphere.material = material;
 
-    spheresBuf[i] = sphere;
+    updateSpheresBuffer(sphere, i);
     offset.x += r * 2.f + 2.f;
   }
 
@@ -210,6 +214,17 @@ void scene4(RayTracingData& rtData) {
 
   u32 firstTriangleIndex = 0;
   updateMeshBuffer(firstTriangleIndex, rtRoomMeshes, ROOM_TOTAL_MESHES);
+}
+
+const Sphere& getSphere(size_t idx) {
+  return spheresBuf[idx];
+}
+
+void updateSpheresBuffer(const Sphere& sphere, size_t idx) {
+  if (!spheresBuf)
+    error("[scene::updateSpheresBuffer] spheresBuf is not allocated");
+
+  spheresBuf[idx] = sphere;
 }
 
 void updateMeshBuffer(u32& firstTriIdx, MeshRT* meshes, int numMeshes, int meshIdxOffset) {

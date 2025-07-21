@@ -74,22 +74,54 @@ void gui::draw() {
     SliderFloat("Sun intensity", &rtDataPtr->sunIntensity, -1.f, 100.f);
     EndDisabled();
 
+    SeparatorText("Spheres");
+    if (rtDataPtr->numSpheres != 0) {
+      static int currentIdx = 0;
+      if (BeginCombo("Spheres", std::to_string(currentIdx).c_str())) {
+        for (int i = 0; i < rtDataPtr->numSpheres; i++) {
+          bool isSelected = currentIdx == i;
+          if (Selectable(std::to_string(i).c_str(), isSelected))
+            currentIdx = i;
+
+          if (isSelected)
+            SetItemDefaultFocus();
+        }
+        EndCombo();
+      }
+
+      Sphere sphere = scene::getSphere(currentIdx);
+      RayTracingMaterial& material = sphere.material;
+      bool didChange = false;
+      didChange += DragFloat3("Position", glm::value_ptr(sphere.pos));
+      didChange += SliderFloat("Radius", &sphere.radius, 0.f, 50.f);
+
+      didChange += ColorEdit4("Color", glm::value_ptr(material.color));
+      didChange += ColorEdit3("Emission color", glm::value_ptr(material.emissionColor));
+      didChange += SliderFloat("Emission strength", &material.emissionStrength, 0.f, 100.f);
+      didChange += SliderFloat("Smoothness", &material.smoothness, 0.f, 1.f);
+      didChange += SliderFloat("Specular probability", &material.specularProbability, 0.f, 1.f);
+      didChange += ColorEdit3("Specular color", glm::value_ptr(material.specularColor));
+
+      if (didChange)
+        scene::updateSpheresBuffer(sphere, currentIdx);
+    }
+
     SeparatorText("Room");
-    bool roomExists = !rtDataPtr->room.meshesRT[0].triangles.empty();
-    BeginDisabled(!roomExists);
-    if (roomExists) {
+    if (!rtDataPtr->room.meshesRT[0].triangles.empty()) {
       static const char* walls[ROOM_TOTAL_MESHES] = {"Left", "Right", "Back", "Front", "Ceiling", "Floor", "Lamp"};
       static int wallIdx = 0;
       Combo("Walls", &wallIdx, walls, ROOM_TOTAL_MESHES);
 
       MeshRT& wall = rtDataPtr->room.meshesRT[wallIdx];
-      RayTracingMaterial& wallMaterial = wall.meshInfo.material;
+      RayTracingMaterial& material = wall.meshInfo.material;
       bool didChange = false;
 
-      didChange += ColorEdit4("Color", glm::value_ptr(wallMaterial.color));
-      didChange += ColorEdit3("Emission color", glm::value_ptr(wallMaterial.emissionColor));
-      didChange += SliderFloat("Emission strength", &wallMaterial.emissionStrength, -10.f, 100.f);
-      didChange += SliderFloat("Smoothness", &wallMaterial.smoothness, -1.f, 1.f);
+      didChange += ColorEdit4("Color##2", glm::value_ptr(material.color));
+      didChange += ColorEdit3("Emission color##2", glm::value_ptr(material.emissionColor));
+      didChange += SliderFloat("Emission strength##2", &material.emissionStrength, 0.f, 100.f);
+      didChange += SliderFloat("Smoothness##2", &material.smoothness, 0.f, 1.f);
+      didChange += SliderFloat("Specular probability##2", &material.specularProbability, 0.f, 1.f);
+      didChange += ColorEdit3("Specular color##2", glm::value_ptr(material.specularColor));
 
       if (didChange) {
         // NOTE: Don't pass directly beacuse the function will increase the value;
@@ -97,7 +129,7 @@ void gui::draw() {
         scene::updateMeshBuffer(firstTriIdx, &wall, 1, wallIdx);
       }
     }
-    EndDisabled();
+
     TreePop();
   }
 

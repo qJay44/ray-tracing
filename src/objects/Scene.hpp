@@ -2,6 +2,7 @@
 
 #include "../engine/Shader.hpp"
 #include "RayTracingData.hpp"
+#include "Sphere.hpp"
 
 // NOTE: Must match in rt.frag
 #define MAX_SPHERES 6u
@@ -14,6 +15,9 @@ namespace scene {
   void scene3(RayTracingData& rtData);
   void scene4(RayTracingData& rtData);
 
+  const Sphere& getSphere(size_t idx);
+
+  void updateSpheresBuffer(const Sphere& sphere, size_t idx);
   void updateMeshBuffer(u32& firstTriIdx, MeshRT* meshes, int numMeshes, int meshIdxOffset = 0);
 
   void setUnifrom(const Shader& shader);
