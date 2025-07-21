@@ -4,6 +4,7 @@
 
 #include "glm/gtc/type_ptr.hpp"
 #include "imgui.h"
+#include "objects/scene.hpp"
 #include "utils/utils.hpp"
 
 #define IM_RED   IM_COL32(255u, 0u  , 0u  , 255u)
@@ -73,6 +74,30 @@ void gui::draw() {
     SliderFloat("Sun intensity", &rtDataPtr->sunIntensity, -1.f, 100.f);
     EndDisabled();
 
+    SeparatorText("Room");
+    bool roomExists = !rtDataPtr->room.meshesRT[0].triangles.empty();
+    BeginDisabled(!roomExists);
+    if (roomExists) {
+      static const char* walls[ROOM_TOTAL_MESHES] = {"Left", "Right", "Back", "Front", "Ceiling", "Floor", "Lamp"};
+      static int wallIdx = 0;
+      Combo("Walls", &wallIdx, walls, ROOM_TOTAL_MESHES);
+
+      MeshRT& wall = rtDataPtr->room.meshesRT[wallIdx];
+      RayTracingMaterial& wallMaterial = wall.meshInfo.material;
+      bool didChange = false;
+
+      didChange += ColorEdit4("Color", glm::value_ptr(wallMaterial.color));
+      didChange += ColorEdit3("Emission color", glm::value_ptr(wallMaterial.emissionColor));
+      didChange += SliderFloat("Emission strength", &wallMaterial.emissionStrength, -10.f, 100.f);
+      didChange += SliderFloat("Smoothness", &wallMaterial.smoothness, -1.f, 1.f);
+
+      if (didChange) {
+        // NOTE: Don't pass directly beacuse the function will increase the value;
+        u32 firstTriIdx = wall.meshInfo.firstTriangleIndex;
+        scene::updateMeshBuffer(firstTriIdx, &wall, 1, wallIdx);
+      }
+    }
+    EndDisabled();
     TreePop();
   }
 

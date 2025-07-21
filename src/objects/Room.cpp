@@ -1,5 +1,7 @@
 #include "Room.hpp"
 
+Room::Room() {}
+
 Room::Room(vec3 center, float width, float height, float depth, const vec3& lampPosScale, float lampScale) {
   RayTracingMaterial wallRed;
   wallRed.color = {global::red, 1.f};
@@ -38,11 +40,15 @@ Room::Room(vec3 center, float width, float height, float depth, const vec3& lamp
   meshesRT[ROOM_IDX_LAMP].createQuad(center + lampOffset, -global::forward, -global::right, -global::up, vec2{width, depth} * lampScale, wallLamp);
 }
 
-const MeshRT* Room::getMeshes() const {
+MeshRT* Room::getMeshes() {
   return meshesRT;
 }
 
-void Room::update(size_t idx, const RayTracingMaterial& material) {
+const RayTracingMaterial& Room::getWallMaterial(size_t idx) const {
+  return meshesRT[idx].meshInfo.material;
+}
+
+void Room::updateMaterial(size_t idx, const RayTracingMaterial& material) {
   meshesRT[idx].meshInfo.material = material;
 }
 

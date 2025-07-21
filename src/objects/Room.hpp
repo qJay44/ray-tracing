@@ -8,21 +8,25 @@
 #define ROOM_IDX_BACK    2u
 #define ROOM_IDX_FRONT   3u
 #define ROOM_IDX_CEILING 4u
-#define ROOM_IDX_LAMP    5u
-#define ROOM_IDX_FLOOR   6u
+#define ROOM_IDX_FLOOR   5u
+#define ROOM_IDX_LAMP    6u
 
 #define ROOM_TOTAL_MESHES 7u
 #define ROOM_TOTAL_TRIANGLES (ROOM_TOTAL_MESHES * 2u)
 
 class Room {
 public:
+  Room();
   Room(vec3 center, float width, float height, float depth, const vec3& lampPosScale = vec3(0.5f, 0.9f, 0.5f), float lampScale = 0.5f);
 
-  const MeshRT* getMeshes() const;
+  MeshRT* getMeshes();
+  const RayTracingMaterial& getWallMaterial(size_t idx) const;
 
-  void update(size_t idx, const RayTracingMaterial& material);
+  void updateMaterial(size_t idx, const RayTracingMaterial& material);
 
 private:
+  friend struct gui;
+
   MeshRT meshesRT[7];
 };
 

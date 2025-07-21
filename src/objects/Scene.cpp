@@ -1,11 +1,52 @@
-#include "Scene.hpp"
+#include "scene.hpp"
 
-#include "Room.hpp"
 #include "glm/gtc/quaternion.hpp"
+#include "../engine/UBO.hpp"
+#include "Room.hpp"
 #include "MeshRT.hpp"
 #include "utils/utils.hpp"
+#include "Sphere.hpp"
+#include "Triangle.hpp"
+#include "MeshInfo.hpp"
 
-Scene Scene::scene1(RayTracingData& rtData) {
+static UBO uboSpheres;
+static UBO uboTriangles;
+static UBO uboMeshesInfos;
+
+static Sphere* spheresBuf = nullptr;
+static Triangle* trianglesBuf = nullptr;
+static MeshInfo* meshesInfosBuf = nullptr;
+
+static void allocateSpheres() {
+  GLsizeiptr size = sizeof(Sphere) * MAX_SPHERES;
+  GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
+
+  uboSpheres = UBO(1);
+  uboSpheres.storage(size, flags);
+  spheresBuf = (Sphere*)uboSpheres.map(size, flags);
+}
+
+static void allocateTriangles() {
+  GLsizeiptr size = sizeof(Triangle) * MAX_TRIANGLES;
+  GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
+
+  uboTriangles = UBO(1);
+  uboTriangles.storage(size, flags);
+  trianglesBuf = (Triangle*)uboTriangles.map(size, flags);
+}
+
+static void allocateMeshes() {
+  GLsizeiptr size = sizeof(MeshInfo) * MAX_MESHES;
+  GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
+
+  uboMeshesInfos = UBO(1);
+  uboMeshesInfos.storage(size, flags);
+  meshesInfosBuf = (MeshInfo*)uboMeshesInfos.map(size, flags);
+}
+
+namespace scene {
+
+void scene1(RayTracingData& rtData) {
   constexpr vec4 palette[MAX_SPHERES] = {
     {1.00f, 0.00f, 1.00f, 1.f}, // Purple
     {0.11f, 0.11f, 0.11f, 1.f}, // Black
@@ -18,8 +59,8 @@ Scene Scene::scene1(RayTracingData& rtData) {
   rtData.numSpheres = 6;
   rtData.enableEnvLight = true;
 
-  Scene scene;
-  scene.allocateSpheres();
+  if (!spheresBuf)
+    allocateSpheres();
 
   RayTracingMaterial bigSphereMaterial;
   bigSphereMaterial.color = palette[0];
@@ -31,7 +72,7 @@ Scene Scene::scene1(RayTracingData& rtData) {
   bigSphere.radius = 10.f;
   bigSphere.material = bigSphereMaterial;
 
-  scene.spheresBuf[0] = bigSphere;
+  spheresBuf[0] = bigSphere;
 
   vec3 spawnFromBigSphereCenterDir = global::up;
   glm::quat q = glm::angleAxis(-PI * 0.1f, global::right);
@@ -50,54 +91,36 @@ Scene Scene::scene1(RayTracingData& rtData) {
     sphere.radius = r;
     sphere.material = material;
 
-    scene.spheresBuf[i] = sphere;
+    spheresBuf[i] = sphere;
     q = glm::angleAxis(PI * 0.03f, global::right);
     spawnFromBigSphereCenterDir = q * spawnFromBigSphereCenterDir;
   }
-
-  return scene;
 }
 
-Scene Scene::scene2(RayTracingData& rtData) {
+void scene2(RayTracingData& rtData) {
   rtData.numMeshes = 1;
   rtData.enableEnvLight = true;
 
-  MeshRT* meshesRT = new MeshRT[rtData.numMeshes];
-  meshesRT[0].loadOBJ("res/obj/Knight.obj", 0.05f);
+  MeshRT rtMeshKnight;
+  rtMeshKnight.loadOBJ("res/obj/Knight.obj", 0.05f);
 
   u32 totalNumTriangles = 0;
-  for (int i = 0; i < rtData.numMeshes; i++) {
-    totalNumTriangles += meshesRT[i].triangles.size();
+  for (int i = 0; i < 1; i++) {
+    totalNumTriangles += rtMeshKnight.triangles.size();
 
     if (totalNumTriangles > MAX_TRIANGLES)
       error("[Scene::scene2] Mesh amount of triangles [{}] exceeds the limit [{}]", totalNumTriangles, MAX_TRIANGLES);
   }
 
-  Scene scene;
-  scene.allocateTriangles();
-  scene.allocateMeshes();
+  if (!trianglesBuf)   allocateTriangles();
+  if (!meshesInfosBuf) allocateMeshes();
 
-  // Fill trianglesBuf and meshInfosBuf
+  // Add meshes to buffers
   u32 firstTriangleIndex = 0;
-  for (int i = 0; i < rtData.numMeshes; i++) {
-    MeshRT& mesh = meshesRT[i];
-    mesh.meshInfo.firstTriangleIndex = firstTriangleIndex;
-
-    for (size_t j = 0; j < mesh.triangles.size(); j++) {
-      scene.trianglesBuf[j + firstTriangleIndex] = mesh.triangles[j];
-    }
-
-    scene.meshesInfosBuf[i] = mesh.meshInfo;
-
-    firstTriangleIndex += mesh.triangles.size();
-  }
-
-  delete[] meshesRT;
-
-  return scene;
+  updateMeshBuffer(firstTriangleIndex, &rtMeshKnight, 1);
 }
 
-Scene Scene::scene3(RayTracingData& rtData) {
+void scene3(RayTracingData& rtData) {
   rtData.numMeshes = 1 + ROOM_TOTAL_MESHES; // Knight + room
   rtData.enableEnvLight = false;
   u32 totalNumTriangles = 0;
@@ -105,56 +128,34 @@ Scene Scene::scene3(RayTracingData& rtData) {
   // ===== Knight meshes ==================================== //
 
   MeshRT rtMeshKnight;
-  rtMeshKnight.loadOBJ("res/obj/Knight.obj", 0.05f, {0.f, -10.f, 0.f});
+  rtMeshKnight.loadOBJ("res/obj/Knight.obj", 0.05f, {0.f, -15.f, 0.f});
   rtMeshKnight.rotate(PI_3, -global::up);
 
   totalNumTriangles += rtMeshKnight.triangles.size();
 
   // ===== Room meshes ====================================== //
 
-  Room room(vec3(0.f), 20.f, 20.f, 20.f);
-  const MeshRT* rtRoomMeshes = room.getMeshes();
+  rtData.room = Room(vec3(0.f), 30.f, 30.f, 30.f);
+  MeshRT* rtRoomMeshes = rtData.room.getMeshes();
 
   // ===== Preparing scene ================================== //
 
   totalNumTriangles += ROOM_TOTAL_TRIANGLES;
 
   if (totalNumTriangles > MAX_TRIANGLES)
-    error("[Scene::scene2] Mesh amount of triangles [{}] exceeds the limit [{}]", totalNumTriangles, MAX_TRIANGLES);
+    error("[Scene::scene3] Mesh amount of triangles [{}] exceeds the limit [{}]", totalNumTriangles, MAX_TRIANGLES);
 
-  Scene scene;
-  scene.allocateTriangles();
-  scene.allocateMeshes();
+  if (!trianglesBuf)   allocateTriangles();
+  if (!meshesInfosBuf) allocateMeshes();
 
-  // ===== Add knight to buffers ============================ //
+  // ===== Add meshes to buffers ============================ //
 
   u32 firstTriangleIndex = 0;
-  rtMeshKnight.meshInfo.firstTriangleIndex = firstTriangleIndex;
-
-  for (size_t i = 0; i < rtMeshKnight.triangles.size(); i++)
-    scene.trianglesBuf[i + firstTriangleIndex] = rtMeshKnight.triangles[i];
-
-  scene.meshesInfosBuf[0] = rtMeshKnight.meshInfo;
-  firstTriangleIndex += rtMeshKnight.triangles.size();
-
-  // ===== Add room to buffers ============================== //
-
-  for (size_t i = 0; i < ROOM_TOTAL_MESHES; i++) {
-    MeshRT mesh = rtRoomMeshes[i];
-    mesh.meshInfo.firstTriangleIndex = firstTriangleIndex;
-
-    for (size_t j = 0; j < mesh.triangles.size(); j++)
-      scene.trianglesBuf[j + firstTriangleIndex] = mesh.triangles[j];
-
-    scene.meshesInfosBuf[i + 1] = mesh.meshInfo;
-
-    firstTriangleIndex += mesh.triangles.size();
-  }
-
-  return scene;
+  updateMeshBuffer(firstTriangleIndex, rtRoomMeshes, ROOM_TOTAL_MESHES); // Room
+  updateMeshBuffer(firstTriangleIndex, &rtMeshKnight, 1, ROOM_TOTAL_MESHES); // Knight
 }
 
-Scene Scene::scene4(RayTracingData& rtData) {
+void scene4(RayTracingData& rtData) {
   rtData.numMeshes = ROOM_TOTAL_MESHES;
   rtData.numSpheres = 4;
   rtData.enableEnvLight = false;
@@ -163,11 +164,11 @@ Scene Scene::scene4(RayTracingData& rtData) {
 
   // ===== Room meshes ====================================== //
 
-  Room room(vec3(0.f), 50.f, 20.f, 20.f);
-  room.update(ROOM_IDX_FLOOR, {vec4(1.f), vec3(0.f), 0.f, 0.f, RT_MATERIAL_FLAG_CHECKERED_PATTERN});
-  room.update(ROOM_IDX_RIGHT, {{global::green, 1.f}});
-  room.update(ROOM_IDX_FRONT, {{global::blue, 1.f}});
-  const MeshRT* rtRoomMeshes = room.getMeshes();
+  rtData.room = Room(vec3(0.f), 50.f, 20.f, 20.f);
+  rtData.room.updateMaterial(ROOM_IDX_FLOOR, {vec4(1.f), vec3(0.f), 0.f, 0.f, RT_MATERIAL_FLAG_CHECKERED_PATTERN});
+  rtData.room.updateMaterial(ROOM_IDX_RIGHT, {{global::green, 1.f}});
+  rtData.room.updateMaterial(ROOM_IDX_FRONT, {{global::blue, 1.f}});
+  MeshRT* rtRoomMeshes = rtData.room.getMeshes();
 
   // ===== Preparing scene ================================== //
 
@@ -175,12 +176,11 @@ Scene Scene::scene4(RayTracingData& rtData) {
   totalNumTriangles += ROOM_TOTAL_TRIANGLES;
 
   if (totalNumTriangles > MAX_TRIANGLES)
-    error("[Scene::scene2] Mesh amount of triangles [{}] exceeds the limit [{}]", totalNumTriangles, MAX_TRIANGLES);
+    error("[Scene::scene4] Mesh amount of triangles [{}] exceeds the limit [{}]", totalNumTriangles, MAX_TRIANGLES);
 
-  Scene scene;
-  scene.allocateSpheres();
-  scene.allocateTriangles();
-  scene.allocateMeshes();
+  if (!spheresBuf)     allocateSpheres();
+  if (!trianglesBuf)   allocateTriangles();
+  if (!meshesInfosBuf) allocateMeshes();
 
   // ===== Spheres ========================================== //
 
@@ -189,7 +189,7 @@ Scene Scene::scene4(RayTracingData& rtData) {
   material.emissionColor = vec3(0.f);
   material.emissionStrength = 0.f;
 
-  float r = 5.f;
+  float r = 4.f;
   vec3 initPos = vec3(0.f);
   vec3 offset = vec3(0.f);
   initPos.x -= r * rtData.numSpheres;
@@ -202,29 +202,44 @@ Scene Scene::scene4(RayTracingData& rtData) {
     sphere.radius = r;
     sphere.material = material;
 
-    scene.spheresBuf[i] = sphere;
+    spheresBuf[i] = sphere;
     offset.x += r * 2.f + 2.f;
   }
 
   // ===== Add room to buffers ============================== //
 
   u32 firstTriangleIndex = 0;
-  for (int i = 0; i < rtData.numMeshes; i++) {
-    MeshRT mesh = rtRoomMeshes[i];
-    mesh.meshInfo.firstTriangleIndex = firstTriangleIndex;
-
-    for (size_t j = 0; j < mesh.triangles.size(); j++)
-      scene.trianglesBuf[j + firstTriangleIndex] = mesh.triangles[j];
-
-    scene.meshesInfosBuf[i] = mesh.meshInfo;
-
-    firstTriangleIndex += mesh.triangles.size();
-  }
-
-  return scene;
+  updateMeshBuffer(firstTriangleIndex, rtRoomMeshes, ROOM_TOTAL_MESHES);
 }
 
-void Scene::setUnifrom(const Shader& shader) const {
+void updateMeshBuffer(u32& firstTriIdx, MeshRT* meshes, int numMeshes, int meshIdxOffset) {
+  if (!meshesInfosBuf)
+    error("[scene::updateMeshBuffer] meshesInfosBuf is not allocated");
+
+  if (!trianglesBuf)
+    error("[scene::updateMeshBuffer] trianglesBuf is not allocated");
+
+  GLsync fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+  if (fence) {
+    glClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, UINT64_MAX);
+    glDeleteSync(fence);
+  }
+
+  for (int i = 0; i < numMeshes; i++) {
+    MeshRT& mesh = meshes[i];
+    mesh.meshInfo.firstTriangleIndex = firstTriIdx;
+
+    for (size_t j = 0; j < mesh.triangles.size(); j++) {
+      trianglesBuf[j + firstTriIdx] = mesh.triangles[j];
+    }
+
+    meshesInfosBuf[i + meshIdxOffset] = mesh.meshInfo;
+
+    firstTriIdx += mesh.triangles.size();
+  }
+}
+
+void setUnifrom(const Shader& shader) {
   static const GLint spheresBlockLoc     = shader.getUniformBlockIndex("u_spheresBlock");
   static const GLint trianglesBlockLoc   = shader.getUniformBlockIndex("u_trianglesBlock");
   static const GLint meshesInfosBlockLoc = shader.getUniformBlockIndex("u_meshesInfosBlock");
@@ -238,42 +253,17 @@ void Scene::setUnifrom(const Shader& shader) const {
   uboMeshesInfos.bindBase(2);
 }
 
-void Scene::bind() const {
+void bind() {
   uboSpheres.bind();
   uboTriangles.bind();
   uboMeshesInfos.bind();
 }
 
-void Scene::unbind() const {
+void unbind() {
   uboSpheres.unbind();
   uboTriangles.unbind();
   uboMeshesInfos.unbind();
 }
 
-void Scene::allocateSpheres() {
-  GLsizeiptr size = sizeof(Sphere) * MAX_SPHERES;
-  GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
-
-  uboSpheres = UBO(1);
-  uboSpheres.storage(size, flags);
-  spheresBuf = (Sphere*)uboSpheres.map(size, flags);
-}
-
-void Scene::allocateTriangles() {
-  GLsizeiptr size = sizeof(Triangle) * MAX_TRIANGLES;
-  GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
-
-  uboTriangles = UBO(1);
-  uboTriangles.storage(size, flags);
-  trianglesBuf = (Triangle*)uboTriangles.map(size, flags);
-}
-
-void Scene::allocateMeshes() {
-  GLsizeiptr size = sizeof(MeshInfo) * MAX_MESHES;
-  GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
-
-  uboMeshesInfos = UBO(1);
-  uboMeshesInfos.storage(size, flags);
-  meshesInfosBuf = (MeshInfo*)uboMeshesInfos.map(size, flags);
-}
+} // namespace scenes
 

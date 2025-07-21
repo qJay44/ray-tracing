@@ -74,7 +74,7 @@ uniform int u_numRenderedFrames;
 uniform int u_numRayBounces;
 uniform int u_numSpheres;
 uniform int u_numMeshes;
-uniform int u_enableEnvironmentalLight;
+uniform bool u_enableEnvironmentalLight;
 uniform float u_sunFocus;
 uniform float u_sunIntensity;
 
@@ -229,6 +229,9 @@ vec3 randomHemisphereDirection(vec3 normal) {
 }
 
 vec3 getEnvironmentLight(Ray ray) {
+  if (!u_enableEnvironmentalLight)
+    return vec3(0.f);
+
   vec3 lightDir = normalize(ray.origin - u_lightPos);
   float skyGradientT = pow(smoothstep(0.f, 0.4f, ray.dir.y), 0.35f);
   vec3 skyGradient = mix(u_skyHorizonColor, u_skyZenithColor, skyGradientT);
@@ -263,8 +266,7 @@ vec3 trace(Ray ray) {
       rayColor *= material.color.rgb;
 
     } else {
-      if (u_enableEnvironmentalLight)
-        incomingLight += getEnvironmentLight(ray) * rayColor;
+      incomingLight += getEnvironmentLight(ray) * rayColor;
       break;
     }
   }

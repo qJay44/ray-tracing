@@ -20,7 +20,7 @@
 #include "global.hpp"
 #include "gui.hpp"
 #include "objects/RayTracingData.hpp"
-#include "objects/Scene.hpp"
+#include "objects/scene.hpp"
 #include "utils/clrp.hpp"
 
 using global::window;
@@ -195,8 +195,8 @@ int main() {
 
   // ===== Scenes =============================================== //
 
-  Scene scene = Scene::scene3(rtData);
-  scene.setUnifrom(rtShader);
+  scene::scene4(rtData);
+  scene::setUnifrom(rtShader);
 
   // ============================================================ //
 
@@ -266,14 +266,14 @@ int main() {
     glDisable(GL_DEPTH_TEST);
 
     screenColorTextureDefault.bind();
-    scene.bind();
+    scene::bind();
 
     rtData.update(rtShader);
     rtShader.setUniform3f(rtLightPosLoc, light.getPosition());
     screenMesh.draw(camera, rtShader);
 
     screenColorTextureDefault.unbind();
-    scene.unbind();
+    scene::unbind();
 
     // ===== Average between old and new render (Post-process) ==== //
 

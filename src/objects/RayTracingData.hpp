@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../engine/Shader.hpp"
+#include "Room.hpp"
 
 struct RayTracingData {
   vec3 groundColor;
@@ -13,6 +14,8 @@ struct RayTracingData {
   bool enableEnvLight = true;
   float sunFocus;
   float sunIntensity;
+
+  Room room;
 
   void update(const Shader& shader) const {
     const GLint numRenderedFramesLoc = shader.getUniformLoc("u_numRenderedFrames");
