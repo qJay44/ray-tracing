@@ -109,18 +109,10 @@ int main() {
 
   const GLint averageNumRenderedFramesLoc = averageShader.getUniformLoc("u_numRenderedFrames");
   const GLint averageNewRenderLoc = averageShader.getUniformLoc("u_newRender");
+
   const GLint rtLightPosLoc = rtShader.getUniformLoc("u_lightPos");
 
   rtShader.setUniform2f("u_resolution", vec2(winSize));
-
-  RayTracingData rtData;
-  rtData.groundColor = vec3(0.637f);
-  rtData.skyHorizonColor = {1.000f, 1.000f, 1.000f};
-  rtData.skyZenithColor  = {0.289f, 0.565f, 1.000f};
-  rtData.numRaysPerPixel = 1;
-  rtData.numRayBounces = 2;
-  rtData.sunFocus = 500.f;
-  rtData.sunIntensity = 10.f;
 
   // ===== Light ================================================ //
 
@@ -195,7 +187,8 @@ int main() {
 
   // ===== Scenes =============================================== //
 
-  scene::scene4(rtData);
+  RayTracingData rtData;
+  scene::scene3(rtData);
   scene::setUnifrom(rtShader);
 
   // ============================================================ //

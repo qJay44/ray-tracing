@@ -67,6 +67,8 @@ uniform vec3 u_groundColor;
 uniform vec3 u_skyHorizonColor;
 uniform vec3 u_skyZenithColor;
 uniform vec3 u_camPos;
+uniform vec3 u_camRight;
+uniform vec3 u_camUp;
 uniform mat4 u_camInv;
 uniform sampler2D u_screenColorTexDefault;
 uniform sampler2D u_screenDepthTex;
@@ -78,6 +80,9 @@ uniform int u_numMeshes;
 uniform bool u_enableEnvironmentalLight;
 uniform float u_sunFocus;
 uniform float u_sunIntensity;
+uniform float u_divergeStrength;
+uniform float u_defocusStrength;
+uniform float u_focusDistance;
 
 layout(std140) uniform u_spheresBlock {
   Sphere spheres[MAX_SPHERES];
@@ -91,19 +96,19 @@ layout(std140) uniform u_meshesInfosBlock {
   MeshInfo meshesInfos[MAX_MESHES];
 };
 
-vec3 calcViewVec() {
+vec3 calcViewPoint() {
   vec2 ndc = texCoord * 2.f - 1.f;
-  vec4 clipPos = vec4(ndc, -1.f, 1.f);
+  vec4 clipPos = vec4(ndc, -1.f, 1.f) * u_focusDistance;
   vec4 worldPos = u_camInv * clipPos;
   worldPos /= worldPos.w;
 
-  return worldPos.xyz - u_camPos;
+  return worldPos.xyz;
 }
 
 Ray calcRay() {
   Ray r;
   r.origin = u_camPos;
-  r.dir = normalize(calcViewVec());
+  r.dir = normalize(calcViewPoint() - u_camPos);
 
   return r;
 }
@@ -213,6 +218,7 @@ float randomValue() {
 float randomValueNormalDistribution() {
   float theta = 2.f * PI * randomValue();
   float rho = sqrt(-2.f * log(randomValue()));
+
   return rho * cos(theta);
 }
 
@@ -222,6 +228,13 @@ vec3 randomDirection() {
     randomValueNormalDistribution(),
     randomValueNormalDistribution()
   ));
+}
+
+vec2 randomPointInCircle() {
+  float angle = randomValue() * 2.f * PI;
+  vec2 pointOnCircle = vec2(cos(angle), sin(angle));
+
+  return pointOnCircle * sqrt(randomValue());
 }
 
 vec3 randomHemisphereDirection(vec3 normal) {
@@ -277,11 +290,18 @@ vec3 trace(Ray ray) {
 }
 
 void main() {
-  Ray ray = calcRay();
-  vec3 color = texture(u_screenColorTexDefault, texCoord).rgb;
-
+  vec3 color = texture(u_screenColorTexDefault, texCoord).rgb; // the pixel from default drawing
   vec3 totalIncomingLight = vec3(0.f);
+
   for (int i = 0; i < u_numRaysPerPixel; i++) {
+    Ray ray;
+    vec2 defocusJitter = randomPointInCircle() * u_defocusStrength / u_resolution.x;
+    ray.origin = u_camPos + u_camRight * defocusJitter.x + u_camUp * defocusJitter.y;
+
+    vec2 jitter = randomPointInCircle() * u_divergeStrength / u_resolution.x;
+    vec3 jitteredViewPoint = calcViewPoint() + u_camRight * jitter.x + u_camUp * jitter.y;
+    ray.dir = normalize(jitteredViewPoint - u_camPos);
+
     totalIncomingLight += trace(ray);
   }
 

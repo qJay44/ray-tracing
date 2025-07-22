@@ -67,6 +67,9 @@ void gui::draw() {
     ColorEdit3("Sky zenith color", glm::value_ptr(rtDataPtr->skyZenithColor));
     SliderInt("Rays per pixel", &rtDataPtr->numRaysPerPixel, 1, 100);
     SliderInt("Ray bounces", &rtDataPtr->numRayBounces, 1, 100);
+    SliderFloat("Rays diverge strength", &rtDataPtr->divergeStrength, 0.f, 100.f);
+    SliderFloat("Rays defocus strength", &rtDataPtr->defocusStrength, 0.f, 100.f);
+    SliderFloat("Focus distance", &rtDataPtr->focusDistance, 1.f, 100.f);
 
     Checkbox("Enable environmental light", &rtDataPtr->enableEnvLight);
     BeginDisabled(!rtDataPtr->enableEnvLight);
